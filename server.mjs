@@ -1,0 +1,201 @@
+import { createServer } from 'node:http';
+import { readFile, readdir, stat } from 'node:fs/promises';
+import { join, resolve, relative, extname, basename } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import chokidar from 'chokidar';
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const distDir = join(__dirname, 'dist');
+
+// Parse CLI args
+const args = process.argv.slice(2);
+let targetDir = process.cwd();
+let port = 4000;
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--port' || args[i] === '-p') {
+    port = parseInt(args[++i], 10);
+  } else if (!args[i].startsWith('-')) {
+    targetDir = resolve(args[i]);
+  }
+}
+
+const MD_EXTENSIONS = new Set(['.md', '.markdown', '.mdx', '.txt']);
+
+// SSE clients
+const sseClients = new Set();
+
+// File tree builder
+async function buildTree(dir, base = dir) {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const items = [];
+
+  for (const entry of entries) {
+    if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+
+    const fullPath = join(dir, entry.name);
+    const relPath = relative(base, fullPath);
+
+    if (entry.isDirectory()) {
+      const children = await buildTree(fullPath, base);
+      if (children.length > 0) {
+        items.push({ name: entry.name, path: relPath, type: 'dir', children });
+      }
+    } else if (MD_EXTENSIONS.has(extname(entry.name).toLowerCase())) {
+      items.push({ name: entry.name, path: relPath, type: 'file' });
+    }
+  }
+
+  // Sort: dirs first, then files, alphabetically
+  items.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  return items;
+}
+
+// Safe path resolution (prevent traversal)
+function safePath(reqPath) {
+  const resolved = resolve(targetDir, reqPath);
+  if (!resolved.startsWith(targetDir)) return null;
+  return resolved;
+}
+
+// MIME types for static files
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+};
+
+// Serve static file from dist
+async function serveStatic(res, urlPath) {
+  let filePath = join(distDir, urlPath === '/' ? 'index.html' : urlPath);
+
+  try {
+    const s = await stat(filePath);
+    if (s.isDirectory()) filePath = join(filePath, 'index.html');
+  } catch {
+    // SPA fallback
+    filePath = join(distDir, 'index.html');
+  }
+
+  try {
+    const content = await readFile(filePath);
+    const ext = extname(filePath);
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    res.end(content);
+  } catch {
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('Not found');
+  }
+}
+
+// HTTP server
+const server = createServer(async (req, res) => {
+  const url = new URL(req.url, `http://localhost:${port}`);
+
+  // CORS headers for dev
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  // API routes
+  if (url.pathname === '/api/tree') {
+    try {
+      const tree = await buildTree(targetDir);
+      const rootName = basename(targetDir);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ root: rootName, path: targetDir, tree }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/file') {
+    const filePath = url.searchParams.get('path');
+    if (!filePath) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing path parameter' }));
+      return;
+    }
+
+    const resolved = safePath(filePath);
+    if (!resolved) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Access denied' }));
+      return;
+    }
+
+    try {
+      const content = await readFile(resolved, 'utf-8');
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end(content);
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'File not found' }));
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/watch') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+    res.write('data: connected\n\n');
+
+    sseClients.add(res);
+    req.on('close', () => sseClients.delete(res));
+    return;
+  }
+
+  if (url.pathname === '/api/info') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ dir: targetDir, root: basename(targetDir) }));
+    return;
+  }
+
+  // Static files
+  await serveStatic(res, url.pathname);
+});
+
+// File watcher
+const mdGlobs = [...MD_EXTENSIONS].map((ext) => `**/*${ext}`);
+const watcher = chokidar.watch(mdGlobs, {
+  cwd: targetDir,
+  ignoreInitial: true,
+  ignored: ['**/node_modules/**', '**/.*'],
+});
+
+function broadcast(event, filePath) {
+  const data = JSON.stringify({ event, path: filePath });
+  for (const client of sseClients) {
+    client.write(`data: ${data}\n\n`);
+  }
+}
+
+watcher.on('change', (path) => broadcast('change', path));
+watcher.on('add', (path) => broadcast('add', path));
+watcher.on('unlink', (path) => broadcast('unlink', path));
+
+server.listen(port, () => {
+  console.log(`\n  Markdown Viewer`);
+  console.log(`  ───────────────────────────────`);
+  console.log(`  Watching:  ${targetDir}`);
+  console.log(`  Server:    http://localhost:${port}/`);
+  console.log(`  ───────────────────────────────\n`);
+});
