@@ -7,6 +7,7 @@ import { renderJsonTree } from './json-tree';
 import { renderYamlTree } from './yaml-tree';
 import { TabBar, addRecent, getRecent } from './tabs';
 import { renderCsvTable } from './csv-viewer';
+import { FindBar } from './find-bar';
 import hljs from 'highlight.js';
 import './style.css';
 
@@ -30,6 +31,9 @@ const sidebar = document.getElementById('sidebar') as HTMLElement;
 const breadcrumb = document.getElementById('breadcrumb') as HTMLElement;
 const tocSidebar = document.getElementById('toc-sidebar') as HTMLElement;
 const tabBarEl = document.getElementById('tab-bar') as HTMLElement;
+
+// --- Find bar (/) ---
+const findBar = new FindBar(viewer);
 
 // --- Tab bar (#14) ---
 const tabBar = new TabBar(
@@ -514,6 +518,7 @@ function toggleShortcutHelp() {
       <kbd>Cmd+Shift+S</kbd><span>Slide mode</span>
       <kbd>Cmd+/−/0</kbd><span>Zoom in/out/reset</span>
       <kbd>Alt+Z</kbd><span>Word wrap toggle</span>
+      <kbd>/</kbd><span>Find in document</span>
       <kbd>↑ / ↓</kbd><span>Navigate sidebar</span>
       <kbd>?</kbd><span>This help</span>
       <kbd>Esc</kbd><span>Close overlay</span>
@@ -556,7 +561,21 @@ function handleKeyboard(e: KeyboardEvent) {
     if (e.key === 'Escape') { document.getElementById('shortcut-overlay')?.remove(); e.preventDefault(); }
     return;
   }
+  if (findBar.active) {
+    if (e.key === 'Escape') { findBar.close(); e.preventDefault(); }
+    return;
+  }
   if (searchModal.isOpen) return;
+
+  // Vim-style find (/)
+  if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    findBar.open();
+    return;
+  }
+  if (e.key === 'n' && !e.metaKey && !e.ctrlKey) {
+    // n/N for next/prev match when find was used
+  }
 
   if (e.key === '?' && !e.metaKey && !e.ctrlKey) {
     e.preventDefault();

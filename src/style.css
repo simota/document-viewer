@@ -1733,6 +1733,106 @@ body.dragging::after {
   to { transform: translateX(-50%) translateY(0); opacity: 1; }
 }
 
+/* ===== Find Bar (/) ===== */
+.find-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  min-height: 38px;
+}
+
+.find-slash {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  width: 16px;
+  text-align: center;
+}
+
+.find-input {
+  flex: 1;
+  max-width: 320px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.find-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-bg);
+}
+
+.find-info {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 48px;
+  text-align: center;
+}
+
+.find-info.no-match {
+  color: #ef4444;
+}
+
+.find-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.find-btn:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+/* Highlight matches */
+mark.find-match {
+  background: rgba(245, 158, 11, 0.25);
+  color: inherit;
+  padding: 1px 0;
+  border-radius: 2px;
+}
+
+mark.find-current {
+  background: rgba(245, 158, 11, 0.6);
+  color: inherit;
+  padding: 1px 0;
+  border-radius: 2px;
+  outline: 2px solid #f59e0b;
+  outline-offset: 1px;
+}
+
+/* CSS Highlight API support */
+::highlight(find-highlight) {
+  background-color: rgba(245, 158, 11, 0.25);
+}
+
+::highlight(find-current) {
+  background-color: rgba(245, 158, 11, 0.6);
+  outline: 2px solid #f59e0b;
+}
+
 /* ===== CSV Viewer (#4) ===== */
 .csv-view {
   overflow: hidden;
@@ -1893,12 +1993,16 @@ body.dragging::after {
 }
 
 @media print {
+  /* ===== Hide UI chrome ===== */
   #toolbar, #sidebar, #toc-sidebar, .search-overlay,
   .copy-btn, .mermaid-label, .code-lang, .data-lang,
-  .tab-bar, .reconnect-banner, .json-view-toggle {
+  .tab-bar, .reconnect-banner, .json-view-toggle,
+  .find-bar, .slide-overlay, .header-anchor,
+  .error-banner, .welcome {
     display: none !important;
   }
 
+  /* ===== Layout: remove all constraints ===== */
   #app, #workspace, #viewer-pane, #viewer {
     display: block !important;
     height: auto !important;
@@ -1907,27 +2011,277 @@ body.dragging::after {
     padding: 0 !important;
     margin: 0 !important;
     position: static !important;
+    background: white !important;
   }
 
-  .markdown-body {
-    font-size: 12pt;
-    max-width: none !important;
-  }
-
-  .mermaid-rendered, .code-block pre, .data-view pre {
-    break-inside: avoid;
-    box-shadow: none !important;
-    border-color: #ccc;
+  /* ===== Page setup ===== */
+  @page {
+    size: A4;
+    margin: 20mm 18mm;
   }
 
   body {
     background: white !important;
-    color: black !important;
+    color: #1a1a1a !important;
+    font-size: 11pt !important;
+    line-height: 1.6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  a { color: #1a0dab !important; }
-  a::after { content: ' (' attr(href) ')'; font-size: 0.8em; color: #666; }
-  a[href^="#"]::after { content: ''; }
+  /* ===== Typography ===== */
+  .markdown-body {
+    font-size: 11pt !important;
+    max-width: none !important;
+    line-height: 1.65;
+    color: #1a1a1a !important;
+  }
+
+  .markdown-body h1 {
+    font-size: 22pt !important;
+    border-bottom: 2pt solid #333 !important;
+    background-image: none !important;
+    padding-bottom: 6pt;
+    margin-top: 0 !important;
+    break-after: avoid;
+  }
+
+  .markdown-body h2 {
+    font-size: 16pt !important;
+    border-bottom: 0.5pt solid #999 !important;
+    padding-bottom: 4pt;
+    break-after: avoid;
+  }
+
+  .markdown-body h3 {
+    font-size: 13pt !important;
+    color: #333 !important;
+    break-after: avoid;
+  }
+
+  .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+    break-after: avoid;
+  }
+
+  .markdown-body p, .markdown-body li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* ===== Links ===== */
+  .markdown-body a {
+    color: #1a0dab !important;
+    text-decoration: underline !important;
+    background-image: none !important;
+  }
+
+  .markdown-body a[href^="http"]::after {
+    content: ' (' attr(href) ')';
+    font-size: 0.75em;
+    color: #888;
+    word-break: break-all;
+  }
+
+  .markdown-body a[href^="#"]::after,
+  .markdown-body a.footnote-backref::after,
+  .markdown-body sup.footnote-ref a::after {
+    content: '' !important;
+  }
+
+  /* ===== Code blocks ===== */
+  .code-block, .data-view {
+    break-inside: avoid;
+  }
+
+  .code-block pre, .data-view pre, .markdown-body pre {
+    box-shadow: none !important;
+    border: 1px solid #d0d0d0 !important;
+    border-radius: 4pt !important;
+    background: #f8f8f8 !important;
+    font-size: 9pt !important;
+    line-height: 1.5;
+    padding: 10pt 12pt !important;
+    overflow: visible !important;
+    white-space: pre-wrap !important;
+    word-break: break-word;
+  }
+
+  .markdown-body pre.hljs code {
+    color: #333 !important;
+  }
+
+  .markdown-body code {
+    background: #f0f0f0 !important;
+    border: 0.5pt solid #d0d0d0;
+    color: #c7254e !important;
+    font-size: 9.5pt !important;
+    padding: 1pt 4pt;
+  }
+
+  /* ===== Tables ===== */
+  .markdown-body table, .csv-table {
+    break-inside: avoid;
+    border: 1px solid #999 !important;
+    box-shadow: none !important;
+    font-size: 9.5pt !important;
+  }
+
+  .markdown-body th, .csv-table th {
+    background: #e8e8e8 !important;
+    color: #333 !important;
+    border: 1px solid #999 !important;
+    font-weight: 700;
+  }
+
+  .markdown-body td, .csv-table td {
+    border: 1px solid #bbb !important;
+  }
+
+  .markdown-body tr:nth-child(2n) {
+    background: #f5f5f5 !important;
+  }
+
+  /* ===== Blockquotes ===== */
+  .markdown-body blockquote {
+    border-left: 3pt solid #666 !important;
+    background: #f5f5f5 !important;
+    color: #444 !important;
+    break-inside: avoid;
+  }
+
+  .markdown-body blockquote::before {
+    color: #999 !important;
+  }
+
+  /* ===== Alerts & Containers ===== */
+  .markdown-alert, .custom-block {
+    break-inside: avoid;
+    border-left-width: 3pt !important;
+    background: #f8f8f8 !important;
+  }
+
+  /* ===== Images ===== */
+  .markdown-body img, .image-view img {
+    max-width: 100% !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  .image-view {
+    break-inside: avoid;
+  }
+
+  /* ===== Mermaid diagrams ===== */
+  .mermaid-container {
+    overflow: visible !important;
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #d0d0d0 !important;
+    border-radius: 4pt !important;
+    background: white !important;
+    position: relative !important;
+    display: block !important;
+    height: auto !important;
+  }
+
+  .mermaid-container pre.mermaid {
+    display: none !important;
+  }
+
+  .mermaid-rendered {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+    padding: 12pt !important;
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .mermaid-rendered svg {
+    filter: none !important;
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Force SVG elements to render in print */
+  .mermaid-rendered svg * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ===== Footnotes ===== */
+  .markdown-body .footnotes {
+    border-top: 0.5pt solid #999;
+    padding-top: 8pt;
+    margin-top: 24pt;
+    font-size: 9pt;
+  }
+
+  /* ===== Math ===== */
+  .markdown-body .katex-display {
+    break-inside: avoid;
+  }
+
+  /* ===== Highlights & Marks ===== */
+  .markdown-body mark {
+    background: #fff3cd !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  mark.find-match, mark.find-current {
+    background: transparent !important;
+    outline: none !important;
+  }
+
+  /* ===== GitHub Alerts print colors ===== */
+  .markdown-alert-note { border-color: #3b82f6 !important; }
+  .markdown-alert-tip { border-color: #22c55e !important; }
+  .markdown-alert-important { border-color: #a855f7 !important; }
+  .markdown-alert-warning { border-color: #f59e0b !important; }
+  .markdown-alert-caution { border-color: #ef4444 !important; }
+
+  /* ===== Page header/footer via content ===== */
+  .markdown-body::before {
+    content: '';
+    display: block;
+  }
+
+  /* ===== JSON/YAML tree ===== */
+  .json-tree {
+    font-size: 9pt !important;
+    break-inside: avoid;
+  }
+
+  .jt-key { color: #1a56db !important; }
+  .jt-str { color: #059669 !important; }
+  .jt-num { color: #b45309 !important; }
+
+  /* ===== CSV ===== */
+  .csv-table-wrap {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .csv-info {
+    color: #666 !important;
+  }
+
+  /* ===== Definition lists ===== */
+  .markdown-body dt {
+    break-after: avoid;
+  }
+
+  .markdown-body dd {
+    break-before: avoid;
+  }
 }
 
 /* ===== Responsive ===== */
