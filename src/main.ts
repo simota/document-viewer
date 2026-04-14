@@ -7,7 +7,7 @@ import './style.css';
 
 type LayoutMode = 'split' | 'editor' | 'preview';
 
-let layoutMode: LayoutMode = 'split';
+let layoutMode: LayoutMode = 'preview';
 let splitInstance: Split.Instance | null = null;
 let renderTimeout: ReturnType<typeof setTimeout> | null = null;
 let currentFilePath: string | null = null;
@@ -46,6 +46,8 @@ function initSplit() {
   previewPane.style.display = '';
   editorPane.style.width = '';
   previewPane.style.width = '';
+
+  document.body.dataset.layout = layoutMode;
 
   if (layoutMode === 'split') {
     splitInstance = Split(['#editor-pane', '#preview-pane'], {
@@ -183,14 +185,17 @@ function connectSSE() {
   };
 }
 
-async function detectServerMode() {
+async function detectServerMode(): Promise<{ server: boolean; initialFile: string | null }> {
   try {
     const res = await fetch('/api/info');
-    if (res.ok) return true;
+    if (res.ok) {
+      const data = await res.json();
+      return { server: true, initialFile: data.initialFile || null };
+    }
   } catch {
     // not server mode
   }
-  return false;
+  return { server: false, initialFile: null };
 }
 
 // --- Init ---
@@ -201,7 +206,7 @@ async function init() {
   const currentTheme = initTheme();
   updateMermaidTheme(currentTheme === 'dark');
 
-  const hasServer = await detectServerMode();
+  const { server: hasServer, initialFile } = await detectServerMode();
 
   if (hasServer) {
     fileTree = new FileTree(document.getElementById('filetree')!, (path) => {
@@ -216,14 +221,19 @@ async function init() {
 
     connectSSE();
 
-    // Load first file if available
-    const firstFile = sidebar.querySelector('.filetree-item[data-type="file"]') as HTMLElement;
-    if (firstFile?.dataset.path) {
-      loadServerFile(firstFile.dataset.path);
-      fileTree.setActive(firstFile.dataset.path);
+    // Load initial file (from CLI arg) or first file in tree
+    if (initialFile) {
+      loadServerFile(initialFile);
+      fileTree.setActive(initialFile);
     } else {
-      editor.value = SAMPLE_MARKDOWN;
-      updatePreview();
+      const firstFile = sidebar.querySelector('.filetree-item[data-type="file"]') as HTMLElement;
+      if (firstFile?.dataset.path) {
+        loadServerFile(firstFile.dataset.path);
+        fileTree.setActive(firstFile.dataset.path);
+      } else {
+        editor.value = SAMPLE_MARKDOWN;
+        updatePreview();
+      }
     }
   } else {
     // Pure frontend mode — hide sidebar button and sidebar

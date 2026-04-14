@@ -1,14 +1,32 @@
 {
   "name": "markdown-viewer",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
+  "description": "Beautiful Markdown viewer with Mermaid diagram support, live preview, and local file browsing",
+  "license": "MIT",
+  "bin": {
+    "mdv": "bin/mdv.mjs"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "server.mjs",
+    "package.json"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "serve": "npm run build && node server.mjs"
+    "serve": "npm run build && node server.mjs",
+    "prepublishOnly": "npm run build"
   },
+  "keywords": [
+    "markdown",
+    "viewer",
+    "mermaid",
+    "preview",
+    "cli"
+  ],
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
     "typescript": "~6.0.2",
@@ -17,7 +35,19 @@
   "dependencies": {
     "chokidar": "^5.0.0",
     "highlight.js": "^11.11.1",
+    "katex": "^0.16.45",
     "markdown-it": "^14.1.1",
+    "markdown-it-anchor": "^9.2.0",
+    "markdown-it-container": "^4.0.0",
+    "markdown-it-deflist": "^3.0.0",
+    "markdown-it-emoji": "^3.0.0",
+    "markdown-it-footnote": "^4.0.0",
+    "markdown-it-front-matter": "^0.2.4",
+    "markdown-it-github-alerts": "^1.0.1",
+    "markdown-it-mark": "^4.0.0",
+    "markdown-it-sub": "^2.0.0",
+    "markdown-it-sup": "^2.0.0",
+    "markdown-it-texmath": "^1.0.0",
     "mermaid": "^11.14.0",
     "split.js": "^1.6.5"
   }

@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { join, resolve, relative, extname, basename } from 'node:path';
+import { join, resolve, relative, extname, basename, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import chokidar from 'chokidar';
 
@@ -10,13 +10,26 @@ const distDir = join(__dirname, 'dist');
 // Parse CLI args
 const args = process.argv.slice(2);
 let targetDir = process.cwd();
+let initialFile = null;
 let port = 4000;
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--port' || args[i] === '-p') {
     port = parseInt(args[++i], 10);
   } else if (!args[i].startsWith('-')) {
-    targetDir = resolve(args[i]);
+    const resolved = resolve(args[i]);
+    try {
+      const s = await stat(resolved);
+      if (s.isFile()) {
+        targetDir = dirname(resolved);
+        initialFile = basename(resolved);
+      } else {
+        targetDir = resolved;
+      }
+    } catch {
+      // Path doesn't exist yet — treat as directory
+      targetDir = resolved;
+    }
   }
 }
 
@@ -165,7 +178,7 @@ const server = createServer(async (req, res) => {
 
   if (url.pathname === '/api/info') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ dir: targetDir, root: basename(targetDir) }));
+    res.end(JSON.stringify({ dir: targetDir, root: basename(targetDir), initialFile }));
     return;
   }
 

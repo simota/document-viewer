@@ -1,6 +1,6 @@
 export const SAMPLE_MARKDOWN = `# Markdown Viewer
 
-A beautiful **Markdown viewer** with _Mermaid diagram_ support.
+A beautiful **Markdown viewer** with _Mermaid diagram_ support and ==extended syntax==.
 
 ---
 
@@ -10,7 +10,91 @@ A beautiful **Markdown viewer** with _Mermaid diagram_ support.
 - Mermaid diagram rendering
 - Syntax highlighting for code blocks
 - Dark / Light theme toggle
-- File open support
+- :rocket: Extended Markdown support
+
+## GitHub Alerts
+
+> [!NOTE]
+> This viewer supports GitHub-style alerts — a widely adopted format for callouts.
+
+> [!TIP]
+> Use the sidebar to browse local Markdown files, and they will auto-reload on save.
+
+> [!WARNING]
+> Very large files may take a moment to render due to Mermaid diagram processing.
+
+> [!IMPORTANT]
+> All extended syntax features are built on the official markdown-it plugin ecosystem.
+
+> [!CAUTION]
+> Don't forget to save your work — the editor content is not persisted automatically.
+
+## Custom Containers
+
+:::tip Pro Tip
+You can use custom containers for structured callouts in documentation.
+:::
+
+:::warning Attention
+Containers support \`tip\`, \`warning\`, \`danger\`, \`info\`, and \`details\` types.
+:::
+
+:::details Click to expand
+This content is hidden by default inside a \`<details>\` element.
+
+You can put **any Markdown** here, including code:
+\\\`\\\`\\\`js
+console.log('Hello from details!');
+\\\`\\\`\\\`
+:::
+
+## Math / LaTeX
+
+Inline math: The famous equation $E = mc^2$ changed physics forever.
+
+Display math:
+
+$$
+\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}
+$$
+
+The quadratic formula:
+
+$$
+x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}
+$$
+
+## Footnotes
+
+Markdown Viewer uses markdown-it[^1] as its core parser, with Mermaid[^2] for diagrams and KaTeX[^3] for math rendering.
+
+[^1]: [markdown-it](https://github.com/markdown-it/markdown-it) — a fast and extensible Markdown parser.
+[^2]: [Mermaid](https://mermaid.js.org/) — JavaScript-based diagramming tool.
+[^3]: [KaTeX](https://katex.org/) — fast math typesetting library.
+
+## Text Formatting
+
+| Syntax | Result |
+|--------|--------|
+| \`==highlighted==\` | ==highlighted text== |
+| \`H~2~O\` | H~2~O |
+| \`x^2^\` | x^2^ |
+| \`:smile:\` | :smile: |
+| \`:tada:\` | :tada: |
+| \`**bold**\` | **bold** |
+| \`*italic*\` | *italic* |
+| \`~~strikethrough~~\` | ~~strikethrough~~ |
+
+## Definition List
+
+Markdown
+: A lightweight markup language for creating formatted text using a plain-text editor.
+
+Mermaid
+: A JavaScript-based tool for generating diagrams and charts from text definitions.
+
+KaTeX
+: A fast, easy-to-use library for rendering TeX math on the web.
 
 ## Code Example
 
@@ -60,25 +144,19 @@ sequenceDiagram
     App->>User: Display Diagram
 \`\`\`
 
-### Pie Chart
-
-\`\`\`mermaid
-pie title Tech Stack
-    "TypeScript" : 40
-    "CSS" : 30
-    "HTML" : 15
-    "Mermaid" : 15
-\`\`\`
-
 ## Table
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Markdown rendering | ✅ | Full GFM support |
-| Mermaid diagrams | ✅ | All diagram types |
-| Syntax highlighting | ✅ | 190+ languages |
-| Theme toggle | ✅ | Dark & Light |
-| File open | ✅ | .md, .txt |
+| Markdown rendering | :white_check_mark: | Full GFM support |
+| Mermaid diagrams | :white_check_mark: | All diagram types |
+| Math / KaTeX | :white_check_mark: | Inline & display |
+| GitHub Alerts | :white_check_mark: | 5 alert types |
+| Footnotes | :white_check_mark: | Clickable refs |
+| Highlight / Sub / Sup | :white_check_mark: | Extended formatting |
+| Emoji shortcodes | :white_check_mark: | :tada: |
+| Custom containers | :white_check_mark: | 5 container types |
+| Heading anchors | :white_check_mark: | Hover to see # |
 
 ## Blockquote
 
@@ -87,17 +165,16 @@ pie title Tech Stack
 
 ## Task List
 
-- [x] Set up project
-- [x] Implement Markdown parser
-- [x] Add Mermaid support
-- [x] Style the interface
-- [ ] Add more features
-
-## Math-like Rendering
-
-The formula for the area of a circle is \\\`A = πr²\\\`.
+- [x] Core Markdown rendering
+- [x] Mermaid diagrams
+- [x] Math / KaTeX support
+- [x] GitHub Alerts
+- [x] Footnotes & extended formatting
+- [x] Custom containers
+- [x] Local file server with auto-reload
+- [ ] Even more features coming...
 
 ---
 
-*Built with markdown-it, Mermaid, and highlight.js*
+*Built with markdown-it, Mermaid, KaTeX, and highlight.js*
 `;
