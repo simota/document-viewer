@@ -299,6 +299,14 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/shutdown') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('ok');
+    watcher.close();
+    server.close(() => process.exit(0));
+    return;
+  }
+
   if (url.pathname === '/api/custom-css') {
     const cssPath = join(targetDir, '.docview.css');
     try {
@@ -474,27 +482,20 @@ watcher.on('change', (path) => broadcast('change', path));
 watcher.on('add', (path) => broadcast('add', path));
 watcher.on('unlink', (path) => broadcast('unlink', path));
 
-import { createServer as createNetServer } from 'node:net';
-
-function isPortFree(p) {
-  return new Promise((resolve) => {
-    const tester = createNetServer()
-      .once('error', () => resolve(false))
-      .once('listening', () => tester.close(() => resolve(true)))
-      .listen(p);
-  });
-}
-
-async function findFreePort(start, maxRetries = 10) {
-  for (let p = start; p < start + maxRetries; p++) {
-    if (await isPortFree(p)) return p;
-    console.log(`  Port ${p} is in use, trying ${p + 1}...`);
+async function killExistingDocview(p) {
+  try {
+    const res = await fetch(`http://localhost:${p}/api/tree`);
+    if (res.ok) {
+      console.log(`  Stopping existing DocView on port ${p}...`);
+      await fetch(`http://localhost:${p}/api/shutdown`).catch(() => {});
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  } catch {
+    // No server running — good
   }
-  throw new Error(`No free port found in range ${start}-${start + maxRetries - 1}`);
 }
 
-const freePort = await findFreePort(port);
-port = freePort;
+await killExistingDocview(port);
 
 server.listen(port, () => {
   console.log(`\n  DocView`);
