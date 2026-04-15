@@ -1619,8 +1619,10 @@ body.dragging::after {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
   font-size: 14px;
   border: none;
   background: none;
@@ -2590,5 +2592,64 @@ a.wiki-link:hover {
 
   .markdown-body pre.hljs {
     padding: 1em 1.2em;
+  }
+}
+
+/* ===== Focus Visible (WCAG 2.2 SC 2.4.13) ===== */
+.toolbar-btn:focus-visible,
+.filetree-item:focus-visible,
+.tab-item:focus-visible,
+.find-btn:focus-visible,
+.error-btn:focus-visible,
+.search-regex-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.tab-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+/* ===== Loading Skeleton ===== */
+.loading-skeleton {
+  padding: 40px 48px;
+  animation: skeleton-fade 1s ease-in-out infinite alternate;
+}
+
+.loading-skeleton .skel-line {
+  height: 14px;
+  margin-bottom: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+}
+
+.loading-skeleton .skel-line:first-child {
+  height: 28px;
+  width: 45%;
+  margin-bottom: 24px;
+}
+
+.loading-skeleton .skel-line:nth-child(2) { width: 90%; }
+.loading-skeleton .skel-line:nth-child(3) { width: 75%; }
+.loading-skeleton .skel-line:nth-child(4) { width: 85%; }
+.loading-skeleton .skel-line:nth-child(5) { width: 60%; }
+.loading-skeleton .skel-line:nth-child(6) { width: 70%; }
+
+@keyframes skeleton-fade {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+
+/* ===== Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

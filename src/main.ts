@@ -432,6 +432,9 @@ async function loadServerFile(path: string) {
     return;
   }
 
+  // Show loading skeleton for feedback
+  viewer.innerHTML = `<div class="loading-skeleton">${'<div class="skel-line"></div>'.repeat(6)}</div>`;
+
   try {
     const res = await fetch(`/api/file?path=${encodeURIComponent(path)}`);
     if (!res.ok) {
@@ -540,6 +543,9 @@ function toggleShortcutHelp() {
   overlay = document.createElement('div');
   overlay.id = 'shortcut-overlay';
   overlay.className = 'search-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Keyboard shortcuts');
   overlay.innerHTML = `<div class="search-modal shortcut-modal">
     <h2 class="shortcut-title">Keyboard Shortcuts</h2>
     <div class="shortcut-grid">

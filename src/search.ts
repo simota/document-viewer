@@ -24,6 +24,10 @@ export class SearchModal {
     this.overlay.className = 'search-overlay';
     this.overlay.style.display = 'none';
 
+    this.overlay.setAttribute('role', 'dialog');
+    this.overlay.setAttribute('aria-modal', 'true');
+    this.overlay.setAttribute('aria-label', 'Search');
+
     const modal = document.createElement('div');
     modal.className = 'search-modal';
 
@@ -88,6 +92,7 @@ export class SearchModal {
     this.input.value = '';
     this.results.innerHTML = '';
     this.regexToggle.style.display = mode === 'fulltext' ? '' : 'none';
+    this.overlay.setAttribute('aria-label', mode === 'fulltext' ? 'Full-text search' : 'Search files');
     this.overlay.style.display = '';
     requestAnimationFrame(() => this.input.focus());
 
