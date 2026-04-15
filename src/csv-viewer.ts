@@ -57,54 +57,54 @@ function detectColumnType(rows: Element[], colIndex: number): 'number' | 'date' 
   return 'string';
 }
 
+function updateSortHeaders(
+  ths: Element[],
+  activeTh: Element,
+  direction: 'ascending' | 'descending',
+): void {
+  ths.forEach((h) => {
+    h.setAttribute('aria-sort', 'none');
+    h.classList.remove('sort-asc', 'sort-desc');
+  });
+  activeTh.setAttribute('aria-sort', direction);
+  activeTh.classList.add(direction === 'ascending' ? 'sort-asc' : 'sort-desc');
+}
+
+function compareRows(
+  a: Element,
+  b: Element,
+  colIndex: number,
+  colType: 'number' | 'date' | 'string',
+): number {
+  const aText = (a.children[colIndex]?.textContent ?? '').trim();
+  const bText = (b.children[colIndex]?.textContent ?? '').trim();
+  if (colType === 'number') return parseNum(aText) - parseNum(bText);
+  if (colType === 'date') return Date.parse(aText) - Date.parse(bText);
+  return aText.localeCompare(bText);
+}
+
 export function initCsvSort(): void {
   document.addEventListener('click', (e) => {
     const th = (e.target as HTMLElement).closest('.csv-sortable th');
     if (!th) return;
 
     const table = th.closest('table')!;
-    const thead = table.querySelector('thead')!;
-    const tbody = table.querySelector('tbody')!;
-    const ths = Array.from(thead.querySelectorAll('th'));
+    const ths = Array.from(table.querySelectorAll('thead th'));
     const colIndex = ths.indexOf(th as HTMLTableCellElement);
     if (colIndex < 0) return;
 
-    // Determine sort direction
-    const currentSort = th.getAttribute('aria-sort');
-    const direction = currentSort === 'ascending' ? 'descending' : 'ascending';
+    const direction = th.getAttribute('aria-sort') === 'ascending' ? 'descending' : 'ascending';
+    updateSortHeaders(ths, th, direction);
 
-    // Reset all headers
-    ths.forEach((h) => {
-      h.setAttribute('aria-sort', 'none');
-      h.classList.remove('sort-asc', 'sort-desc');
-    });
-
-    // Set active header
-    th.setAttribute('aria-sort', direction);
-    th.classList.add(direction === 'ascending' ? 'sort-asc' : 'sort-desc');
-
-    // Detect column type from first non-empty value
+    const tbody = table.querySelector('tbody')!;
     const rows = Array.from(tbody.querySelectorAll('tr'));
     const colType = detectColumnType(rows, colIndex);
 
     rows.sort((a, b) => {
-      const aText = (a.children[colIndex]?.textContent ?? '').trim();
-      const bText = (b.children[colIndex]?.textContent ?? '').trim();
-
-      let cmp = 0;
-      if (colType === 'number') {
-        const aNum = parseNum(aText);
-        const bNum = parseNum(bText);
-        cmp = aNum - bNum;
-      } else if (colType === 'date') {
-        cmp = Date.parse(aText) - Date.parse(bText);
-      } else {
-        cmp = aText.localeCompare(bText);
-      }
+      const cmp = compareRows(a, b, colIndex, colType);
       return direction === 'ascending' ? cmp : -cmp;
     });
 
-    // Re-append sorted rows
     rows.forEach((row) => tbody.appendChild(row));
   });
 }
