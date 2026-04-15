@@ -438,6 +438,12 @@ const server = createServer(async (req, res) => {
     const useRegex = url.searchParams.get('regex') === '1';
     let matcher;
     if (useRegex) {
+      // Reject patterns likely to cause catastrophic backtracking (ReDoS)
+      if (query.length > 200 || /(\.\*){3,}|(\([^)]*\+\)[^)]*\+)/.test(query)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Regex pattern too complex' }));
+        return;
+      }
       try {
         matcher = new RegExp(query, 'i');
       } catch {
@@ -585,8 +591,17 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/diagram') {
+    // Body size limit (1 MB) to prevent memory exhaustion
+    const MAX_BODY = 1024 * 1024;
     let body = '';
-    for await (const chunk of req) body += chunk;
+    for await (const chunk of req) {
+      body += chunk;
+      if (body.length > MAX_BODY) {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Request body too large' }));
+        return;
+      }
+    }
 
     let data;
     try { data = JSON.parse(body); } catch {
@@ -599,6 +614,14 @@ const server = createServer(async (req, res) => {
     if (!type || !source) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Missing type or source' }));
+      return;
+    }
+
+    // Whitelist diagram types to prevent SSRF via URL path injection
+    const ALLOWED_DIAGRAM_TYPES = new Set(['d2', 'plantuml', 'ditaa']);
+    if (!ALLOWED_DIAGRAM_TYPES.has(type)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Unsupported diagram type: ${type}` }));
       return;
     }
 

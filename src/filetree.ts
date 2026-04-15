@@ -37,6 +37,10 @@ function fileIcon(name: string): string {
 
 const ICON_DIR_CLOSED = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
 const ICON_DIR_OPEN = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`;
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 const ICON_CHEVRON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
 
 export class FileTree {
@@ -122,7 +126,7 @@ export class FileTree {
       if (node.type === 'dir') {
         const isOpen = this.openDirs.has(node.path);
         item.setAttribute('aria-expanded', String(isOpen));
-        item.innerHTML = `<span class="filetree-chevron ${isOpen ? 'open' : ''}">${ICON_CHEVRON}</span>${isOpen ? ICON_DIR_OPEN : ICON_DIR_CLOSED}<span class="filetree-name">${node.name}</span>`;
+        item.innerHTML = `<span class="filetree-chevron ${isOpen ? 'open' : ''}">${ICON_CHEVRON}</span>${isOpen ? ICON_DIR_OPEN : ICON_DIR_CLOSED}<span class="filetree-name">${esc(node.name)}</span>`;
 
         const childrenContainer = document.createElement('div');
         childrenContainer.className = 'filetree-children';
@@ -138,7 +142,7 @@ export class FileTree {
           const toggled = !this.openDirs.has(node.path);
           if (toggled) this.openDirs.add(node.path); else this.openDirs.delete(node.path);
           item.setAttribute('aria-expanded', String(toggled));
-          item.innerHTML = `<span class="filetree-chevron ${toggled ? 'open' : ''}">${ICON_CHEVRON}</span>${toggled ? ICON_DIR_OPEN : ICON_DIR_CLOSED}<span class="filetree-name">${node.name}</span>`;
+          item.innerHTML = `<span class="filetree-chevron ${toggled ? 'open' : ''}">${ICON_CHEVRON}</span>${toggled ? ICON_DIR_OPEN : ICON_DIR_CLOSED}<span class="filetree-name">${esc(node.name)}</span>`;
           childrenContainer.style.display = toggled ? '' : 'none';
           if (toggled && node.children) {
             this.renderTree(node.children, childrenContainer, depth + 1);
@@ -148,7 +152,7 @@ export class FileTree {
         parent.appendChild(item);
         parent.appendChild(childrenContainer);
       } else {
-        item.innerHTML = `<span class="filetree-chevron-spacer"></span>${fileIcon(node.name)}<span class="filetree-name">${node.name}</span>`;
+        item.innerHTML = `<span class="filetree-chevron-spacer"></span>${fileIcon(node.name)}<span class="filetree-name">${esc(node.name)}</span>`;
         if (this.activePath === node.path) {
           item.classList.add('active');
           item.setAttribute('aria-selected', 'true');

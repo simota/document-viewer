@@ -9,7 +9,7 @@
     "url": "https://github.com/simota/docview"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19.0"
   },
   "author": "",
   "bin": {
