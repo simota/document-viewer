@@ -152,12 +152,12 @@ const md = new MarkdownIt({
     const langLabel = lang ? `<span class="code-lang">${md.utils.escapeHtml(lang)}</span>` : '';
     if (lang && hljs.getLanguage(lang)) {
       try {
-        return `<div class="code-block">${langLabel}<pre class="hljs"><code>${hljs.highlight(str, { language: lang }).value}</code></pre></div>`;
+        return `<pre class="hljs code-block">${langLabel}<code>${hljs.highlight(str, { language: lang }).value}</code></pre>`;
       } catch {
         // fallthrough
       }
     }
-    return `<div class="code-block">${langLabel}<pre class="hljs"><code>${md.utils.escapeHtml(str)}</code></pre></div>`;
+    return `<pre class="hljs code-block">${langLabel}<code>${md.utils.escapeHtml(str)}</code></pre>`;
   },
 });
 
