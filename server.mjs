@@ -41,6 +41,8 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.json', '.jsonl', '.ndjson', '.yaml', '.yml', '.csv', '.tsv',
   // Config
   '.toml', '.ini', '.conf', '.env', '.cfg', '.properties',
+  // Logs
+  '.log',
   // Images
   '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico',
 ]);

@@ -2003,6 +2003,77 @@ mark.find-current {
   background: var(--accent-bg);
 }
 
+.csv-info--warn {
+  color: var(--color-warning);
+}
+
+/* ===== Log Viewer ===== */
+.log-view .log-ts {
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.log-view .log-path,
+.log-view .log-referer,
+.log-view .log-ua {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-view .log-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* HTTP method badges */
+.log-method {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+.log-method-get    { background: rgba(34, 197, 94, 0.12);  color: #16a34a; }
+.log-method-post   { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
+.log-method-put    { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+.log-method-delete { background: rgba(239, 68, 68, 0.12);  color: #dc2626; }
+.log-method-patch  { background: rgba(168, 85, 247, 0.12); color: #9333ea; }
+.log-method-head   { background: rgba(20, 184, 166, 0.12); color: #0d9488; }
+
+/* HTTP status badges */
+.log-status {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+.log-status-2xx { background: rgba(34, 197, 94, 0.12);  color: #16a34a; }
+.log-status-3xx { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
+.log-status-4xx { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+.log-status-5xx { background: rgba(239, 68, 68, 0.12);  color: #dc2626; }
+
+/* Dark theme overrides */
+[data-theme='dark'] .log-method-get    { color: #4ade80; }
+[data-theme='dark'] .log-method-post   { color: #60a5fa; }
+[data-theme='dark'] .log-method-put    { color: #fbbf24; }
+[data-theme='dark'] .log-method-delete { color: #f87171; }
+[data-theme='dark'] .log-method-patch  { color: #c084fc; }
+[data-theme='dark'] .log-method-head   { color: #2dd4bf; }
+[data-theme='dark'] .log-status-2xx { color: #4ade80; }
+[data-theme='dark'] .log-status-3xx { color: #60a5fa; }
+[data-theme='dark'] .log-status-4xx { color: #fbbf24; }
+[data-theme='dark'] .log-status-5xx { color: #f87171; }
+
 /* ===== Word Wrap (#7) ===== */
 .word-wrap pre code,
 .word-wrap .csv-table td {

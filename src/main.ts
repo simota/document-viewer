@@ -8,6 +8,7 @@ import { renderYamlTree } from './yaml-tree';
 import { TabBar, addRecent, getRecent } from './tabs';
 import { renderCsvTable, initCsvSort } from './csv-viewer';
 import { renderJsonlTable } from './jsonl-viewer';
+import { renderLogTable } from './log-viewer';
 import { FindBar } from './find-bar';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
@@ -61,8 +62,9 @@ const CSV_EXT = new Set(['.csv', '.tsv']);
 const JSONL_EXT = new Set(['.jsonl', '.ndjson']);
 const CONFIG_EXT = new Set(['.toml', '.ini', '.conf', '.env', '.cfg', '.properties']);
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico']);
+const LOG_EXT = new Set(['.log']);
 
-type FileType = 'markdown' | 'data' | 'csv' | 'jsonl' | 'config' | 'image' | 'unknown';
+type FileType = 'markdown' | 'data' | 'csv' | 'jsonl' | 'config' | 'log' | 'image' | 'unknown';
 
 function getExt(path: string): string {
   return '.' + (path.split('.').pop()?.toLowerCase() || '');
@@ -75,6 +77,7 @@ function detectFileType(path: string): FileType {
   if (CSV_EXT.has(ext)) return 'csv';
   if (JSONL_EXT.has(ext)) return 'jsonl';
   if (CONFIG_EXT.has(ext)) return 'config';
+  if (LOG_EXT.has(ext)) return 'log';
   if (IMAGE_EXT.has(ext)) return 'image';
   return 'unknown';
 }
@@ -289,6 +292,26 @@ function renderContent(content: string, path: string, target: HTMLElement = view
         <div class="json-view-tree">${tableHtml}</div>
         <div class="json-view-source" style="display:none"><div class="data-view"><span class="data-lang">JSONL</span><pre class="hljs"><code>${escaped}</code></pre></div></div>`;
       initToggleButtons(target);
+      if (target === viewer) toc.clear();
+      break;
+    }
+
+    case 'log': {
+      const tableHtml = renderLogTable(content, path);
+      if (tableHtml) {
+        const escaped = escapeHtml(content);
+        target.innerHTML = `
+          <div class="json-view-toggle">
+            <button class="json-toggle-btn active" data-view="tree">Table</button>
+            <button class="json-toggle-btn" data-view="source">Source</button>
+          </div>
+          <div class="json-view-tree">${tableHtml}</div>
+          <div class="json-view-source" style="display:none"><div class="data-view"><span class="data-lang">LOG</span><pre class="hljs"><code>${escaped}</code></pre></div></div>`;
+        initToggleButtons(target);
+      } else {
+        // Not a recognized access log format — render as plain text
+        renderHighlighted(content, path, target);
+      }
       if (target === viewer) toc.clear();
       break;
     }
