@@ -7,6 +7,7 @@ import { renderJsonTree } from './json-tree';
 import { renderYamlTree } from './yaml-tree';
 import { TabBar, addRecent, getRecent } from './tabs';
 import { renderCsvTable, initCsvSort } from './csv-viewer';
+import { renderJsonlTable } from './jsonl-viewer';
 import { FindBar } from './find-bar';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
@@ -57,10 +58,11 @@ const tabBar = new TabBar(
 const MARKDOWN_EXT = new Set(['.md', '.markdown', '.mdx', '.txt']);
 const DATA_EXT = new Set(['.json', '.yaml', '.yml']);
 const CSV_EXT = new Set(['.csv', '.tsv']);
+const JSONL_EXT = new Set(['.jsonl', '.ndjson']);
 const CONFIG_EXT = new Set(['.toml', '.ini', '.conf', '.env', '.cfg', '.properties']);
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico']);
 
-type FileType = 'markdown' | 'data' | 'csv' | 'config' | 'image' | 'unknown';
+type FileType = 'markdown' | 'data' | 'csv' | 'jsonl' | 'config' | 'image' | 'unknown';
 
 function getExt(path: string): string {
   return '.' + (path.split('.').pop()?.toLowerCase() || '');
@@ -71,6 +73,7 @@ function detectFileType(path: string): FileType {
   if (MARKDOWN_EXT.has(ext)) return 'markdown';
   if (DATA_EXT.has(ext)) return 'data';
   if (CSV_EXT.has(ext)) return 'csv';
+  if (JSONL_EXT.has(ext)) return 'jsonl';
   if (CONFIG_EXT.has(ext)) return 'config';
   if (IMAGE_EXT.has(ext)) return 'image';
   return 'unknown';
@@ -106,6 +109,21 @@ function updateBreadcrumb(path: string | null, mtime?: string | null) {
     html += `<span class="breadcrumb-mtime" title="${escapeHtml(mtime)}">${fmt}</span>`;
   }
   breadcrumb.innerHTML = html;
+}
+
+// --- Tree/Source toggle ---
+function initToggleButtons(container: HTMLElement) {
+  container.querySelectorAll<HTMLButtonElement>('.json-toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const view = btn.dataset.view;
+      container.querySelectorAll('.json-toggle-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tree = container.querySelector('.json-view-tree') as HTMLElement;
+      const source = container.querySelector('.json-view-source') as HTMLElement;
+      if (tree) tree.style.display = view === 'tree' ? '' : 'none';
+      if (source) source.style.display = view === 'source' ? '' : 'none';
+    });
+  });
 }
 
 // --- Copy button on code blocks (#4) ---
@@ -218,17 +236,7 @@ function renderContent(content: string, path: string, target: HTMLElement = view
             </div>
             <div class="json-view-tree">${treeHtml}</div>
             <div class="json-view-source" style="display:none"><div class="data-view"><span class="data-lang">JSON</span><pre class="hljs"><code>${highlighted}</code></pre></div></div>`;
-          target.querySelectorAll<HTMLButtonElement>('.json-toggle-btn').forEach((btn) => {
-            btn.addEventListener('click', () => {
-              const view = btn.dataset.view;
-              target.querySelectorAll('.json-toggle-btn').forEach((b) => b.classList.remove('active'));
-              btn.classList.add('active');
-              const tree = target.querySelector('.json-view-tree') as HTMLElement;
-              const source = target.querySelector('.json-view-source') as HTMLElement;
-              if (tree) tree.style.display = view === 'tree' ? '' : 'none';
-              if (source) source.style.display = view === 'source' ? '' : 'none';
-            });
-          });
+          initToggleButtons(target);
         } else {
           renderHighlighted(content, path, target);
         }
@@ -243,16 +251,7 @@ function renderContent(content: string, path: string, target: HTMLElement = view
             </div>
             <div class="json-view-tree">${treeHtml}</div>
             <div class="json-view-source" style="display:none"><div class="data-view"><span class="data-lang">YAML</span><pre class="hljs"><code>${highlighted}</code></pre></div></div>`;
-          target.querySelectorAll<HTMLButtonElement>('.json-toggle-btn').forEach((btn) => {
-            btn.addEventListener('click', () => {
-              target.querySelectorAll('.json-toggle-btn').forEach((b) => b.classList.remove('active'));
-              btn.classList.add('active');
-              const tree = target.querySelector('.json-view-tree') as HTMLElement;
-              const source = target.querySelector('.json-view-source') as HTMLElement;
-              if (tree) tree.style.display = btn.dataset.view === 'tree' ? '' : 'none';
-              if (source) source.style.display = btn.dataset.view === 'source' ? '' : 'none';
-            });
-          });
+          initToggleButtons(target);
         } else {
           renderHighlighted(content, path, target);
         }
@@ -263,10 +262,36 @@ function renderContent(content: string, path: string, target: HTMLElement = view
       break;
     }
 
-    case 'csv':
-      target.innerHTML = renderCsvTable(content, path);
+    case 'csv': {
+      const tableHtml = renderCsvTable(content, path);
+      const ext = path.split('.').pop()?.toUpperCase() || 'CSV';
+      const escaped = escapeHtml(content);
+      target.innerHTML = `
+        <div class="json-view-toggle">
+          <button class="json-toggle-btn active" data-view="tree">Table</button>
+          <button class="json-toggle-btn" data-view="source">Source</button>
+        </div>
+        <div class="json-view-tree">${tableHtml}</div>
+        <div class="json-view-source" style="display:none"><div class="data-view"><span class="data-lang">${ext}</span><pre class="hljs"><code>${escaped}</code></pre></div></div>`;
+      initToggleButtons(target);
       if (target === viewer) toc.clear();
       break;
+    }
+
+    case 'jsonl': {
+      const tableHtml = renderJsonlTable(content, path);
+      const escaped = escapeHtml(content);
+      target.innerHTML = `
+        <div class="json-view-toggle">
+          <button class="json-toggle-btn active" data-view="tree">Table</button>
+          <button class="json-toggle-btn" data-view="source">Source</button>
+        </div>
+        <div class="json-view-tree">${tableHtml}</div>
+        <div class="json-view-source" style="display:none"><div class="data-view"><span class="data-lang">JSONL</span><pre class="hljs"><code>${escaped}</code></pre></div></div>`;
+      initToggleButtons(target);
+      if (target === viewer) toc.clear();
+      break;
+    }
 
     case 'config':
       renderHighlighted(content, path, target);

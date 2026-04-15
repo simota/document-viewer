@@ -1,0 +1,92 @@
+export function renderJsonlTable(content: string, path: string): string {
+  const lines = content.split('\n').filter((l) => l.trim() !== '');
+
+  if (!lines.length) {
+    return `<p class="error-banner">No data found in ${esc(path)}</p>`;
+  }
+
+  const rows: Record<string, unknown>[] = [];
+  const parseErrors: number[] = [];
+
+  lines.forEach((line, i) => {
+    try {
+      const obj = JSON.parse(line);
+      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+        rows.push(obj as Record<string, unknown>);
+      } else {
+        parseErrors.push(i + 1);
+      }
+    } catch {
+      parseErrors.push(i + 1);
+    }
+  });
+
+  if (!rows.length) {
+    return `<p class="error-banner">No valid JSON objects found in ${esc(path)}</p>`;
+  }
+
+  // Collect all keys preserving insertion order
+  const fieldSet = new LinkedSet<string>();
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      fieldSet.add(key);
+    }
+  }
+  const fields = fieldSet.values();
+
+  const errorBanner =
+    parseErrors.length > 0
+      ? `<div class="csv-info csv-info--warn">Skipped ${parseErrors.length} invalid line(s): ${parseErrors.slice(0, 10).join(', ')}${parseErrors.length > 10 ? '…' : ''}</div>`
+      : '';
+
+  const ths = fields
+    .map(
+      (f) =>
+        `<th data-col="${esc(f)}" role="columnheader" aria-sort="none">${esc(f)}<span class="sort-indicator" aria-hidden="true"></span></th>`,
+    )
+    .join('');
+
+  const trs = rows
+    .map((row, i) => {
+      const tds = fields
+        .map((f) => {
+          const val = row[f];
+          const cell =
+            val === undefined || val === null
+              ? ''
+              : typeof val === 'object'
+                ? esc(JSON.stringify(val))
+                : esc(String(val));
+          return `<td>${cell}</td>`;
+        })
+        .join('');
+      return `<tr data-row-index="${i}">${tds}</tr>`;
+    })
+    .join('');
+
+  return `<div class="csv-view">
+    <div class="csv-info">${rows.length} rows &times; ${fields.length} columns</div>
+    ${errorBanner}
+    <div class="csv-table-wrap">
+      <table class="csv-table csv-sortable">
+        <thead><tr>${ths}</tr></thead>
+        <tbody>${trs}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Insertion-order preserving set using Map. */
+class LinkedSet<T> {
+  private readonly map = new Map<T, true>();
+  add(v: T): void {
+    this.map.set(v, true);
+  }
+  values(): T[] {
+    return Array.from(this.map.keys());
+  }
+}

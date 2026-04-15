@@ -1,0 +1,9 @@
+{"timestamp":"2024-01-15T08:00:00Z","event":"login","user":"alice","ip":"192.168.1.10","success":true}
+{"timestamp":"2024-01-15T08:05:32Z","event":"view","user":"alice","page":"/dashboard","duration_ms":342}
+{"timestamp":"2024-01-15T08:12:11Z","event":"login","user":"bob","ip":"10.0.0.5","success":false}
+{"timestamp":"2024-01-15T08:13:00Z","event":"login","user":"bob","ip":"10.0.0.5","success":true}
+{"timestamp":"2024-01-15T08:20:45Z","event":"upload","user":"alice","filename":"report.pdf","size_bytes":204800}
+{"timestamp":"2024-01-15T08:35:19Z","event":"view","user":"bob","page":"/settings","duration_ms":120}
+{"timestamp":"2024-01-15T09:01:00Z","event":"logout","user":"alice"}
+{"timestamp":"2024-01-15T09:15:33Z","event":"download","user":"bob","filename":"report.pdf","size_bytes":204800}
+{"timestamp":"2024-01-15T09:30:00Z","event":"logout","user":"bob"}
