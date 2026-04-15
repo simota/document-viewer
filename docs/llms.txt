@@ -1,6 +1,6 @@
 # DocView
 
-> DocView (alias: mdv) is a Node.js CLI tool that serves a local directory as a rich document viewer in the browser. Run `npx github:simota/document-viewer <directory>` to instantly open a feature-rich viewer with live reload.
+> DocView (alias: mdv) is a Node.js CLI tool that serves a local directory as a rich document viewer in the browser. Run `npx github:simota/docview <directory>` to instantly open a feature-rich viewer with live reload.
 
 ## What is DocView?
 
@@ -12,10 +12,10 @@ DocView is an open-source, MIT-licensed Node.js CLI document viewer for develope
 
 ```bash
 # No install required
-npx github:simota/document-viewer .
+npx github:simota/docview .
 
 # Or install globally
-npm install -g github:simota/document-viewer
+npm install -g github:simota/docview
 mdv ./docs
 ```
 
@@ -72,7 +72,7 @@ mdv ./docs
 
 ## Links
 
-- GitHub: https://github.com/simota/document-viewer
-- npm: https://www.github.com/simota/document-viewer
-- Landing Page: https://simota.github.io/document-viewer/
+- GitHub: https://github.com/simota/docview
+- npm: https://www.github.com/simota/docview
+- Landing Page: https://simota.github.io/docview/
 - License: MIT (https://opensource.org/licenses/MIT)

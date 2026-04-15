@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/because-and/docview"
+    "url": "https://github.com/simota/docview"
   },
   "engines": {
     "node": ">=18"
