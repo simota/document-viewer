@@ -6,7 +6,7 @@ import { SearchModal } from './search';
 import { renderJsonTree } from './json-tree';
 import { renderYamlTree } from './yaml-tree';
 import { TabBar, addRecent, getRecent } from './tabs';
-import { renderCsvTable } from './csv-viewer';
+import { renderCsvTable, initCsvSort } from './csv-viewer';
 import { FindBar } from './find-bar';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
@@ -874,6 +874,7 @@ async function init() {
     connectSSE();
     setupSidebarKeyNav();
     initSidebarResize(sidebar);
+    initCsvSort();
 
     // URL hash takes priority, then CLI initial file, then first file in tree
     const hashFile = getHashFile();

@@ -1962,6 +1962,34 @@ mark.find-current {
   z-index: 1;
 }
 
+.csv-sortable th {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.csv-sortable th:hover {
+  color: var(--text-primary);
+}
+
+.csv-sortable th .sort-indicator::after {
+  content: " ⇅";
+  opacity: 0.3;
+  font-size: 10px;
+}
+
+.csv-sortable th.sort-asc .sort-indicator::after {
+  content: " ▲";
+  opacity: 1;
+  color: var(--accent);
+}
+
+.csv-sortable th.sort-desc .sort-indicator::after {
+  content: " ▼";
+  opacity: 1;
+  color: var(--accent);
+}
+
 .csv-table td {
   padding: 6px 12px;
   border-bottom: 1px solid var(--border-subtle);
