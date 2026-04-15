@@ -1840,15 +1840,7 @@ mark.find-current {
   outline-offset: 1px;
 }
 
-/* CSS Highlight API support */
-::highlight(find-highlight) {
-  background-color: rgba(245, 158, 11, 0.25);
-}
-
-::highlight(find-current) {
-  background-color: rgba(245, 158, 11, 0.6);
-  outline: 2px solid #f59e0b;
-}
+/* CSS Highlight API rules are in /highlight-api.css (outside Vite pipeline) */
 
 /* ===== CSV Viewer (#4) ===== */
 .csv-view {
@@ -2321,6 +2313,46 @@ mark.find-current {
   a.wiki-link::after {
     content: '';
   }
+}
+
+/* ===== Export Mode (?export) — headless screenshot support ===== */
+.export-mode #toolbar,
+.export-mode #sidebar,
+.export-mode #toc-sidebar,
+.export-mode .tab-bar,
+.export-mode .search-overlay,
+.export-mode .find-bar,
+.export-mode .progress-bar,
+.export-mode .copy-btn,
+.export-mode .mermaid-label,
+.export-mode .code-lang,
+.export-mode .data-lang,
+.export-mode .header-anchor,
+.export-mode .backlinks-section,
+.export-mode .diagram-label,
+.export-mode .viewer-pane-split {
+  display: none !important;
+}
+
+.export-mode #app,
+.export-mode #workspace,
+.export-mode #viewer-pane,
+.export-mode #viewer {
+  display: block !important;
+  height: auto !important;
+  overflow: visible !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  position: static !important;
+}
+
+.export-mode #viewer {
+  padding: 40px 48px !important;
+}
+
+.export-mode .markdown-body {
+  max-width: none !important;
 }
 
 /* ===== Progress Bar ===== */

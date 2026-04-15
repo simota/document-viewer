@@ -15,6 +15,10 @@ import './style.css';
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
 let zoomLevel = 100; // % (#6)
 
+// Export mode: ?export strips all UI chrome for Playwright screenshots
+const exportMode = new URLSearchParams(location.search).has('export');
+if (exportMode) document.documentElement.classList.add('export-mode');
+
 let currentFilePath: string | null = null;
 let sidebarVisible = false;
 let wordWrap = false; // (#7)
@@ -31,6 +35,7 @@ const btnOpen = document.getElementById('btn-open') as HTMLButtonElement;
 const btnSidebar = document.getElementById('btn-sidebar') as HTMLButtonElement;
 const btnSearch = document.getElementById('btn-search') as HTMLButtonElement;
 const btnPrint = document.getElementById('btn-print') as HTMLButtonElement;
+const btnExport = document.getElementById('btn-export') as HTMLButtonElement;
 const fileInput = document.getElementById('file-input') as HTMLInputElement;
 const sidebar = document.getElementById('sidebar') as HTMLElement;
 const breadcrumb = document.getElementById('breadcrumb') as HTMLElement;
@@ -898,6 +903,37 @@ btnOpen.addEventListener('click', () => fileInput.click());
 btnSidebar.addEventListener('click', toggleSidebar);
 btnSearch.addEventListener('click', () => searchModal.open('files'));
 btnPrint.addEventListener('click', () => window.print()); // #12
+btnExport.addEventListener('click', async () => {
+  btnExport.disabled = true;
+  btnExport.classList.add('toolbar-btn-active');
+  try {
+    const { domToPng } = await import('modern-screenshot');
+
+    // Temporarily apply export-mode styling in-place
+    document.documentElement.classList.add('export-mode');
+
+    // Wait for reflow
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    const dataUrl = await domToPng(viewer, {
+      scale: 2,
+      backgroundColor: getComputedStyle(document.body).getPropertyValue('background-color'),
+    });
+
+    document.documentElement.classList.remove('export-mode');
+
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = (currentFilePath?.replace(/\.[^.]+$/, '') || 'document') + '.png';
+    a.click();
+  } catch (err) {
+    document.documentElement.classList.remove('export-mode');
+    console.error('Export failed:', err);
+  } finally {
+    btnExport.disabled = false;
+    btnExport.classList.remove('toolbar-btn-active');
+  }
+});
 fileInput.addEventListener('change', handleFileSelect);
 document.addEventListener('drop', handleDrop);
 document.addEventListener('dragover', (e) => { e.preventDefault(); document.body.classList.add('dragging'); });

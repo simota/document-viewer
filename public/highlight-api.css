@@ -1,0 +1,9 @@
+/* CSS Highlight API — served unprocessed to avoid lightningcss warnings */
+::highlight(find-highlight) {
+  background-color: rgba(245, 158, 11, 0.25);
+}
+
+::highlight(find-current) {
+  background-color: rgba(245, 158, 11, 0.6);
+  outline: 2px solid #f59e0b;
+}

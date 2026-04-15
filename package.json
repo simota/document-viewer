@@ -66,6 +66,7 @@
     "markdown-it-sup": "^2.0.0",
     "markdown-it-texmath": "^1.0.0",
     "mermaid": "^11.14.0",
+    "modern-screenshot": "^4.6.8",
     "papaparse": "^5.5.3",
     "yaml": "^2.8.3"
   }
