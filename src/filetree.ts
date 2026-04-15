@@ -16,23 +16,23 @@ type FileSelectCallback = (path: string) => void;
 // --- File type icons (#1) ---
 function fileIcon(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase() || '';
-  const icons: Record<string, { color: string; label: string }> = {
-    md: { color: '#6366f1', label: 'M' }, markdown: { color: '#6366f1', label: 'M' },
-    mdx: { color: '#6366f1', label: 'M' }, txt: { color: '#8e91ab', label: 'T' },
-    json: { color: '#22c55e', label: '{}' },
-    yaml: { color: '#f59e0b', label: 'Y' }, yml: { color: '#f59e0b', label: 'Y' },
-    toml: { color: '#d97706', label: 'T' },
-    ini: { color: '#d97706', label: 'I' }, conf: { color: '#d97706', label: 'C' },
-    env: { color: '#d97706', label: 'E' }, cfg: { color: '#d97706', label: 'C' },
-    properties: { color: '#d97706', label: 'P' },
-    csv: { color: '#22c55e', label: ',' }, tsv: { color: '#22c55e', label: ',' },
-    png: { color: '#ec4899', label: '◻' }, jpg: { color: '#ec4899', label: '◻' },
-    jpeg: { color: '#ec4899', label: '◻' }, gif: { color: '#ec4899', label: '◻' },
-    svg: { color: '#ec4899', label: '◻' }, webp: { color: '#ec4899', label: '◻' },
-    bmp: { color: '#ec4899', label: '◻' }, ico: { color: '#ec4899', label: '◻' },
+  const icons: Record<string, { category: string; label: string }> = {
+    md: { category: 'markdown', label: 'M' }, markdown: { category: 'markdown', label: 'M' },
+    mdx: { category: 'markdown', label: 'M' }, txt: { category: 'default', label: 'T' },
+    json: { category: 'data', label: '{}' },
+    yaml: { category: 'config', label: 'Y' }, yml: { category: 'config', label: 'Y' },
+    toml: { category: 'config', label: 'T' },
+    ini: { category: 'config', label: 'I' }, conf: { category: 'config', label: 'C' },
+    env: { category: 'config', label: 'E' }, cfg: { category: 'config', label: 'C' },
+    properties: { category: 'config', label: 'P' },
+    csv: { category: 'data', label: ',' }, tsv: { category: 'data', label: ',' },
+    png: { category: 'image', label: '◻' }, jpg: { category: 'image', label: '◻' },
+    jpeg: { category: 'image', label: '◻' }, gif: { category: 'image', label: '◻' },
+    svg: { category: 'image', label: '◻' }, webp: { category: 'image', label: '◻' },
+    bmp: { category: 'image', label: '◻' }, ico: { category: 'image', label: '◻' },
   };
-  const info = icons[ext] || { color: '#8e91ab', label: '?' };
-  return `<span class="file-icon" style="color:${info.color}" aria-hidden="true">${info.label}</span>`;
+  const info = icons[ext] || { category: 'default', label: '?' };
+  return `<span class="file-icon file-icon--${info.category}" aria-hidden="true">${info.label}</span>`;
 }
 
 const ICON_DIR_CLOSED = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;

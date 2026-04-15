@@ -403,7 +403,7 @@ function showWelcome() {
         <span>Markdown</span><span>YAML</span><span>JSON</span>
         <span>TOML</span><span>INI</span><span>Images</span>
       </div>
-      <p class="welcome-hint">Cmd+P to search files / Cmd+Shift+F for full-text search</p>
+      <p class="welcome-hint"><kbd>Cmd+P</kbd> to search files &nbsp; <kbd>Cmd+Shift+F</kbd> for full-text search</p>
     </div>`;
   toc.clear();
   updateBreadcrumb(null);
