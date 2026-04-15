@@ -152,14 +152,26 @@ const md = new MarkdownIt({
     const langLabel = lang ? `<span class="code-lang">${md.utils.escapeHtml(lang)}</span>` : '';
     if (lang && hljs.getLanguage(lang)) {
       try {
-        return `<pre class="hljs code-block">${langLabel}<code>${hljs.highlight(str, { language: lang }).value}</code></pre>`;
+        return `<div class="code-block">${langLabel}<pre class="hljs"><code>${hljs.highlight(str, { language: lang }).value}</code></pre></div>`;
       } catch {
         // fallthrough
       }
     }
-    return `<pre class="hljs code-block">${langLabel}<code>${md.utils.escapeHtml(str)}</code></pre>`;
+    return `<div class="code-block">${langLabel}<pre class="hljs"><code>${md.utils.escapeHtml(str)}</code></pre></div>`;
   },
 });
+
+// Override fence renderer to use highlight output directly (avoid wrapping in extra <pre><code>)
+md.renderer.rules.fence = function (tokens, idx, options, _env, slf) {
+  const token = tokens[idx];
+  const info = token.info ? token.info.trim() : '';
+  const lang = info.split(/\s+/g)[0] || '';
+  if (options.highlight) {
+    const result = options.highlight(token.content, lang, '');
+    if (result) return result;
+  }
+  return `<pre${slf.renderAttrs(token)}><code>${md.utils.escapeHtml(token.content)}</code></pre>`;
+};
 
 // --- Plugins ---
 
