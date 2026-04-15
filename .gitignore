@@ -10,6 +10,9 @@ lerna-debug.log*
 
 node_modules
 dist
+
+# Large test files (generated for chunked loading tests)
+sample-docs/large-*
 dist-ssr
 *.local
 

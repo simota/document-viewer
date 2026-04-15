@@ -9,12 +9,14 @@ import { TabBar, addRecent, getRecent } from './tabs';
 import { renderCsvTable, initCsvSort } from './csv-viewer';
 import { renderJsonlTable } from './jsonl-viewer';
 import { renderLogTable } from './log-viewer';
+import { ChunkedTable } from './chunked-table';
 import { FindBar } from './find-bar';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
 import './style.css';
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+const CHUNK_THRESHOLD = 5 * 1024 * 1024; // 5MB — files above this use chunked loading
 let zoomLevel = 100; // % (#6)
 
 // Export mode: ?export strips all UI chrome for Playwright screenshots
@@ -457,6 +459,16 @@ function showWelcome() {
   updateBreadcrumb(null);
 }
 
+// --- Chunked file type check ---
+const CHUNKED_TYPES = new Set<FileType>(['csv', 'jsonl', 'log']);
+
+function fileTypeToChunkKind(type: FileType): 'csv' | 'jsonl' | 'log' | null {
+  if (type === 'csv') return 'csv';
+  if (type === 'jsonl') return 'jsonl';
+  if (type === 'log') return 'log';
+  return null;
+}
+
 // --- File loading ---
 async function loadServerFile(path: string) {
   saveScrollPosition();
@@ -484,27 +496,40 @@ async function loadServerFile(path: string) {
   viewer.innerHTML = `<div class="loading-skeleton">${'<div class="skel-line"></div>'.repeat(6)}</div>`;
 
   try {
-    const res = await fetch(`/api/file?path=${encodeURIComponent(path)}`);
-    if (!res.ok) {
-      showError(`Failed to load: ${path} (${res.status})`);
-      return;
-    }
-    const mtime = res.headers.get('X-File-Mtime');
-    updateBreadcrumb(path, mtime);
-    const content = await res.text();
+    // Pre-check file size for chunk-eligible types
+    const chunkKind = fileTypeToChunkKind(type);
+    if (chunkKind && CHUNKED_TYPES.has(type)) {
+      const metaRes = await fetch(`/api/file/meta?path=${encodeURIComponent(path)}`);
+      if (metaRes.ok) {
+        const meta = await metaRes.json();
+        updateBreadcrumb(path, meta.mtime);
 
-    // Large file warning (#10)
-    if (content.length > MAX_FILE_SIZE) {
-      viewer.innerHTML = `<div class="error-banner">
-        <p><strong>Large file</strong> (${(content.length / 1024).toFixed(0)} KB)</p>
-        <p>This file may be slow to render.</p>
-        <button class="error-btn" id="force-render">Render anyway</button>
-      </div>`;
-      document.getElementById('force-render')?.addEventListener('click', () => renderContent(content, path));
-      return;
+        if (meta.size > CHUNK_THRESHOLD) {
+          // Chunked mode — never load full file
+          const chunked = new ChunkedTable(viewer, {
+            path,
+            kind: chunkKind,
+            totalLines: meta.lines ?? 0,
+            fileSize: meta.size,
+            mtime: meta.mtime,
+          });
+          await chunked.init();
+
+          // If log format is unknown, fall back to plain chunked text
+          if (chunked.isLogUnknown()) {
+            await loadFullFile(path);
+          } else {
+            toc.clear();
+            fileTree?.setActive(path);
+            if (progressBar) progressBar.style.width = '0%';
+          }
+          return;
+        }
+      }
     }
 
-    renderContent(content, path);
+    // Standard full-file loading
+    await loadFullFile(path);
   } catch {
     showError(`Connection error loading: ${path}`);
   }
@@ -512,6 +537,30 @@ async function loadServerFile(path: string) {
   fileTree?.setActive(path);
   // Reset progress bar
   if (progressBar) progressBar.style.width = '0%';
+}
+
+async function loadFullFile(path: string) {
+  const res = await fetch(`/api/file?path=${encodeURIComponent(path)}`);
+  if (!res.ok) {
+    showError(`Failed to load: ${path} (${res.status})`);
+    return;
+  }
+  const mtime = res.headers.get('X-File-Mtime');
+  updateBreadcrumb(path, mtime);
+  const content = await res.text();
+
+  // Large file warning
+  if (content.length > MAX_FILE_SIZE) {
+    viewer.innerHTML = `<div class="error-banner">
+      <p><strong>Large file</strong> (${(content.length / 1024).toFixed(0)} KB)</p>
+      <p>This file may be slow to render.</p>
+      <button class="error-btn" id="force-render">Render anyway</button>
+    </div>`;
+    document.getElementById('force-render')?.addEventListener('click', () => renderContent(content, path));
+    return;
+  }
+
+  renderContent(content, path);
 }
 
 // Error UX (#11)

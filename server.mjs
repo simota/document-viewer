@@ -1,5 +1,7 @@
 import { createServer } from 'node:http';
+import { createReadStream } from 'node:fs';
 import { readFile, readdir, stat, realpath } from 'node:fs/promises';
+import { createInterface } from 'node:readline';
 import { join, resolve, relative, extname, basename, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -142,6 +144,68 @@ async function serveStatic(res, urlPath) {
   }
 }
 
+// --- Line-range reading helpers ---
+
+/**
+ * Read a range of lines from a file using streams (never loads full file).
+ * Returns the requested lines and the total line count.
+ */
+async function readLineRange(filePath, offset, limit) {
+  return new Promise((resolve, reject) => {
+    const lines = [];
+    let lineNum = 0;
+    const rl = createInterface({
+      input: createReadStream(filePath, { encoding: 'utf-8' }),
+      crlfDelay: Infinity,
+    });
+    rl.on('line', (line) => {
+      if (lineNum >= offset && lines.length < limit) {
+        lines.push(line);
+      }
+      lineNum++;
+      // Optimisation: once we have our lines, we still need total count,
+      // so we keep counting but skip storing.
+    });
+    rl.on('close', () => resolve({ lines, totalLines: lineNum }));
+    rl.on('error', reject);
+  });
+}
+
+/**
+ * Estimate total line count. For small files (< 1 MB) count exactly.
+ * For larger files, sample the first 8 KB and extrapolate.
+ */
+async function estimateLineCount(filePath, fileSize) {
+  const EXACT_THRESHOLD = 1024 * 1024; // 1 MB
+  if (fileSize <= EXACT_THRESHOLD) {
+    return new Promise((resolve, reject) => {
+      let count = 0;
+      const rl = createInterface({
+        input: createReadStream(filePath, { encoding: 'utf-8' }),
+        crlfDelay: Infinity,
+      });
+      rl.on('line', () => count++);
+      rl.on('close', () => resolve(count));
+      rl.on('error', reject);
+    });
+  }
+  // Sample first 8 KB
+  const SAMPLE = 8192;
+  const buf = Buffer.alloc(SAMPLE);
+  const { open } = await import('node:fs/promises');
+  const fh = await open(filePath, 'r');
+  try {
+    const { bytesRead } = await fh.read(buf, 0, SAMPLE, 0);
+    const sample = buf.toString('utf-8', 0, bytesRead);
+    const newlines = (sample.match(/\n/g) || []).length;
+    if (newlines === 0) return 1;
+    const avgLineBytes = bytesRead / newlines;
+    return Math.round(fileSize / avgLineBytes);
+  } finally {
+    await fh.close();
+  }
+}
+
 // HTTP server
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${port}`);
@@ -177,6 +241,41 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // File metadata (size, line count) — lightweight, no full read
+  if (url.pathname === '/api/file/meta') {
+    const filePath = url.searchParams.get('path');
+    if (!filePath) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing path parameter' }));
+      return;
+    }
+    const resolved = await safePath(filePath);
+    if (!resolved) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Access denied' }));
+      return;
+    }
+    try {
+      const fileStat = await stat(resolved);
+      const ext = extname(resolved).toLowerCase();
+      const meta = {
+        size: fileStat.size,
+        mtime: fileStat.mtime.toISOString(),
+        ext,
+      };
+      // For text files > 0 bytes, estimate line count from a sample
+      if (!IMAGE_EXTENSIONS.has(ext) && fileStat.size > 0) {
+        meta.lines = await estimateLineCount(resolved, fileStat.size);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(meta));
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'File not found' }));
+    }
+    return;
+  }
+
   if (url.pathname === '/api/file') {
     const filePath = url.searchParams.get('path');
     if (!filePath) {
@@ -192,15 +291,38 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // Line-range parameters (optional — omit for full file)
+    const offsetParam = url.searchParams.get('offset');
+    const limitParam = url.searchParams.get('limit');
+    const hasRange = offsetParam !== null || limitParam !== null;
+
     try {
       const fileStat = await stat(resolved);
       const mtime = fileStat.mtime.toISOString();
       const ext = extname(resolved).toLowerCase();
+
       if (IMAGE_EXTENSIONS.has(ext)) {
         const content = await readFile(resolved);
         const mime = IMAGE_MIME[ext] || 'application/octet-stream';
         res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'max-age=5', 'X-File-Mtime': mtime });
         res.end(content);
+      } else if (hasRange) {
+        // Streaming line-range read — never loads the full file into memory
+        const offset = Math.max(0, parseInt(offsetParam || '0', 10) || 0);
+        const limit = Math.max(1, parseInt(limitParam || '1000', 10) || 1000);
+        const { lines, totalLines } = await readLineRange(resolved, offset, limit);
+
+        const headers = {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'X-File-Mtime': mtime,
+          'X-Total-Lines': String(totalLines),
+          'X-Chunk-Offset': String(offset),
+          'X-Chunk-Limit': String(limit),
+          'X-Has-More': String(offset + lines.length < totalLines),
+          'Access-Control-Expose-Headers': 'X-File-Mtime, X-Total-Lines, X-Chunk-Offset, X-Chunk-Limit, X-Has-More',
+        };
+        res.writeHead(200, headers);
+        res.end(lines.join('\n'));
       } else {
         const content = await readFile(resolved, 'utf-8');
         res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'X-File-Mtime': mtime });

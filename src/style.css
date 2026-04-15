@@ -2007,6 +2007,82 @@ mark.find-current {
   color: var(--color-warning);
 }
 
+/* ===== Chunked Pagination ===== */
+.chunk-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 12px;
+  font-size: 13px;
+  user-select: none;
+}
+
+.chunk-page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.chunk-page-btn:hover:not(:disabled) {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.chunk-page-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.chunk-page-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  color: var(--text-secondary);
+}
+
+.chunk-page-input {
+  width: 60px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.chunk-page-input::-webkit-inner-spin-button,
+.chunk-page-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.chunk-page-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-bg);
+}
+
+.chunk-loading {
+  text-align: center;
+  padding: 24px !important;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 /* ===== Log Viewer ===== */
 .log-view .log-ts {
   white-space: nowrap;
