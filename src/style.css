@@ -2083,6 +2083,75 @@ mark.find-current {
   font-style: italic;
 }
 
+/* ===== Chunked Search ===== */
+.chunk-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.chunk-search-input {
+  flex: 1;
+  max-width: 360px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.chunk-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-bg);
+}
+
+.chunk-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.chunk-search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  line-height: 1;
+}
+
+.chunk-search-clear:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.chunk-search-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.chunk-highlight {
+  background: rgba(250, 204, 21, 0.35);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+[data-theme='dark'] .chunk-highlight {
+  background: rgba(250, 204, 21, 0.25);
+}
+
 /* ===== Log Viewer ===== */
 .log-view .log-ts {
   white-space: nowrap;

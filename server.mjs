@@ -206,6 +206,44 @@ async function estimateLineCount(filePath, fileSize) {
   }
 }
 
+/**
+ * Search lines in a file matching a query string (case-insensitive).
+ * Streams through the file and collects matching lines with pagination.
+ * For CSV, always includes the header (line 0) in the response metadata.
+ */
+async function searchFileLines(filePath, query, offset, limit) {
+  const lowerQuery = query.toLowerCase();
+  return new Promise((resolve, reject) => {
+    const matches = [];
+    let lineNum = 0;
+    let totalMatches = 0;
+    let headerLine = null;
+
+    const rl = createInterface({
+      input: createReadStream(filePath, { encoding: 'utf-8' }),
+      crlfDelay: Infinity,
+    });
+
+    rl.on('line', (line) => {
+      // Capture header (line 0) for CSV
+      if (lineNum === 0) {
+        headerLine = line;
+      }
+
+      if (line.toLowerCase().includes(lowerQuery)) {
+        if (totalMatches >= offset && matches.length < limit) {
+          matches.push({ lineNum, text: line });
+        }
+        totalMatches++;
+      }
+      lineNum++;
+    });
+
+    rl.on('close', () => resolve({ matches, totalMatches, totalLines: lineNum, headerLine }));
+    rl.on('error', reject);
+  });
+}
+
 // HTTP server
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${port}`);
@@ -331,6 +369,40 @@ const server = createServer(async (req, res) => {
     } catch {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'File not found' }));
+    }
+    return;
+  }
+
+  // In-file search — stream grep with pagination (for chunked mode)
+  if (url.pathname === '/api/file/search') {
+    const filePath = url.searchParams.get('path');
+    const query = url.searchParams.get('q');
+    if (!filePath || !query) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing path or q parameter' }));
+      return;
+    }
+    const resolved = await safePath(filePath);
+    if (!resolved) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Access denied' }));
+      return;
+    }
+    try {
+      const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10) || 0);
+      const limit = Math.max(1, parseInt(url.searchParams.get('limit') || '1000', 10) || 1000);
+      const { matches, totalMatches, totalLines, headerLine } = await searchFileLines(resolved, query, offset, limit);
+
+      const body = JSON.stringify({ matches, totalMatches, totalLines, headerLine });
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'X-Total-Matches': String(totalMatches),
+        'X-Total-Lines': String(totalLines),
+      });
+      res.end(body);
+    } catch {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Search failed' }));
     }
     return;
   }

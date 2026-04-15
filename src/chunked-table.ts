@@ -1,5 +1,5 @@
 /**
- * Chunked table viewer with server-side pagination.
+ * Chunked table viewer with server-side pagination and search.
  * Handles large CSV, TSV, JSONL, and Log files without loading them fully into memory.
  */
 
@@ -16,12 +16,34 @@ interface ChunkMeta {
   mtime: string;
 }
 
+interface SearchMatch {
+  lineNum: number;
+  text: string;
+}
+
+interface SearchResult {
+  matches: SearchMatch[];
+  totalMatches: number;
+  totalLines: number;
+  headerLine: string | null;
+}
+
 const PAGE_SIZE = 1000;
+const SEARCH_DEBOUNCE_MS = 300;
 
 // --- Shared HTML helpers ---
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Escape HTML then wrap matching portions in <mark> */
+function escWithHighlight(s: string, query: string): string {
+  const escaped = esc(s);
+  if (!query) return escaped;
+  const escapedQuery = esc(query);
+  const re = new RegExp(`(${escapedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  return escaped.replace(re, '<mark class="chunk-highlight">$1</mark>');
 }
 
 function statusClass(status: string): string {
@@ -113,44 +135,45 @@ function parseLogLine(line: string, format: LogFormat): LogEntry | null {
   return null;
 }
 
-// --- Render helpers ---
+// --- Render helpers with optional highlighting ---
 
-function renderCsvRows(fields: string[], rows: Record<string, unknown>[]): string {
+function renderCsvRows(fields: string[], rows: Record<string, unknown>[], query = ''): string {
   return rows.map((row, i) => {
-    const tds = fields.map((f) => `<td>${esc(String(row[f] ?? ''))}</td>`).join('');
+    const tds = fields.map((f) => `<td>${escWithHighlight(String(row[f] ?? ''), query)}</td>`).join('');
     return `<tr data-row-index="${i}">${tds}</tr>`;
   }).join('');
 }
 
-function renderJsonlRows(fields: string[], rows: Record<string, unknown>[]): string {
+function renderJsonlRows(fields: string[], rows: Record<string, unknown>[], query = ''): string {
   return rows.map((row, i) => {
     const tds = fields.map((f) => {
       const val = row[f];
       const cell = val === undefined || val === null ? ''
-        : typeof val === 'object' ? esc(JSON.stringify(val))
-        : esc(String(val));
-      return `<td>${cell}</td>`;
+        : typeof val === 'object' ? JSON.stringify(val)
+        : String(val);
+      return `<td>${escWithHighlight(cell, query)}</td>`;
     }).join('');
     return `<tr data-row-index="${i}">${tds}</tr>`;
   }).join('');
 }
 
-function renderLogRows(entries: LogEntry[], isCombined: boolean): string {
+function renderLogRows(entries: LogEntry[], isCombined: boolean, query = ''): string {
   return entries.map((e, i) => {
     const sc = statusClass(e.status);
+    const h = (s: string) => escWithHighlight(s, query);
     const tds = [
-      `<td>${esc(e.ip)}</td>`,
-      `<td>${esc(e.user)}</td>`,
-      `<td class="log-ts">${esc(e.timestamp)}</td>`,
-      `<td><span class="log-method log-method-${esc(e.method.toLowerCase())}">${esc(e.method)}</span></td>`,
-      `<td class="log-path" title="${esc(e.path)}">${esc(e.path)}</td>`,
-      `<td><span class="log-status ${sc}">${esc(e.status)}</span></td>`,
-      `<td class="log-num">${esc(e.size)}</td>`,
+      `<td>${h(e.ip)}</td>`,
+      `<td>${h(e.user)}</td>`,
+      `<td class="log-ts">${h(e.timestamp)}</td>`,
+      `<td><span class="log-method log-method-${esc(e.method.toLowerCase())}">${h(e.method)}</span></td>`,
+      `<td class="log-path" title="${esc(e.path)}">${h(e.path)}</td>`,
+      `<td><span class="log-status ${sc}">${h(e.status)}</span></td>`,
+      `<td class="log-num">${h(e.size)}</td>`,
     ];
     if (isCombined) {
       tds.push(
-        `<td class="log-referer" title="${esc(e.referer)}">${esc(e.referer)}</td>`,
-        `<td class="log-ua" title="${esc(e.userAgent)}">${esc(e.userAgent)}</td>`,
+        `<td class="log-referer" title="${esc(e.referer)}">${h(e.referer)}</td>`,
+        `<td class="log-ua" title="${esc(e.userAgent)}">${h(e.userAgent)}</td>`,
       );
     }
     return `<tr data-row-index="${i}">${tds.join('')}</tr>`;
@@ -171,6 +194,20 @@ function renderPagination(currentPage: number, totalPages: number): string {
   </div>`;
 }
 
+function renderSearchBar(query: string, totalMatches: number | null): string {
+  const matchInfo = totalMatches !== null
+    ? `<span class="chunk-search-count">${totalMatches.toLocaleString()} matches</span>`
+    : '';
+  const clearBtn = query
+    ? `<button class="chunk-search-clear" title="Clear search">&times;</button>`
+    : '';
+  return `<div class="chunk-search">
+    <input class="chunk-search-input" type="text" placeholder="Search in file..." value="${esc(query)}" aria-label="Search in file">
+    ${clearBtn}
+    ${matchInfo}
+  </div>`;
+}
+
 // --- Main chunked table class ---
 
 export class ChunkedTable {
@@ -184,34 +221,35 @@ export class ChunkedTable {
   // Cached log format
   private logFormat: LogFormat = 'unknown';
 
+  // Search state
+  private searchQuery = '';
+  private searchTotalMatches = 0;
+  private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(container: HTMLElement, meta: ChunkMeta) {
     this.container = container;
     this.meta = meta;
-    // For CSV, subtract header row from data lines
     const dataLines = meta.kind === 'csv' ? Math.max(0, meta.totalLines - 1) : meta.totalLines;
     this.totalPages = Math.max(1, Math.ceil(dataLines / PAGE_SIZE));
   }
 
   async init(): Promise<void> {
-    // For CSV: fetch header row (line 0) separately to detect fields
     if (this.meta.kind === 'csv') {
       const headerText = await this.fetchLines(0, 1);
       const parsed = parseCsvChunk(headerText, true);
       this.csvFields = parsed.fields.length > 0 ? parsed.fields : null;
     }
 
-    // For Log: detect format from first 5 lines
     if (this.meta.kind === 'log') {
       const sampleText = await this.fetchLines(0, 5);
       this.logFormat = detectLogFormat(sampleText);
       if (this.logFormat === 'unknown') {
         this.container.innerHTML = '';
-        return; // signal caller to fall back
+        return;
       }
     }
 
     await this.loadPage(1);
-    this.bindEvents();
   }
 
   isLogUnknown(): boolean {
@@ -222,34 +260,157 @@ export class ChunkedTable {
     const url = `/api/file?path=${encodeURIComponent(this.meta.path)}&offset=${offset}&limit=${limit}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-    // Update total if server provides it
     const totalHeader = res.headers.get('X-Total-Lines');
     if (totalHeader) {
       const total = parseInt(totalHeader, 10);
       if (!isNaN(total) && total > 0) {
         const dataLines = this.meta.kind === 'csv' ? Math.max(0, total - 1) : total;
-        this.totalPages = Math.max(1, Math.ceil(dataLines / PAGE_SIZE));
+        if (!this.searchQuery) {
+          this.totalPages = Math.max(1, Math.ceil(dataLines / PAGE_SIZE));
+        }
         this.meta.totalLines = total;
       }
     }
     return res.text();
   }
 
-  private async loadPage(page: number): Promise<void> {
-    this.currentPage = Math.max(1, Math.min(page, this.totalPages));
+  private async fetchSearchResults(query: string, offset: number, limit: number): Promise<SearchResult> {
+    const url = `/api/file/search?path=${encodeURIComponent(this.meta.path)}&q=${encodeURIComponent(query)}&offset=${offset}&limit=${limit}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+    return res.json();
+  }
 
-    // Calculate line offset (CSV skips header row at line 0)
+  private async loadPage(page: number): Promise<void> {
+    if (this.searchQuery) {
+      await this.loadSearchPage(page);
+      return;
+    }
+
+    this.currentPage = Math.max(1, Math.min(page, this.totalPages));
     const dataOffset = (this.currentPage - 1) * PAGE_SIZE;
     const lineOffset = this.meta.kind === 'csv' ? dataOffset + 1 : dataOffset;
 
-    // Show loading state in tbody
+    this.showLoading();
+    const text = await this.fetchLines(lineOffset, PAGE_SIZE);
+    this.renderTable(text);
+  }
+
+  private async loadSearchPage(page: number): Promise<void> {
+    const searchPages = Math.max(1, Math.ceil(this.searchTotalMatches / PAGE_SIZE));
+    this.currentPage = Math.max(1, Math.min(page, searchPages));
+    this.totalPages = searchPages;
+
+    const offset = (this.currentPage - 1) * PAGE_SIZE;
+    this.showLoading();
+
+    const result = await this.fetchSearchResults(this.searchQuery, offset, PAGE_SIZE);
+    this.searchTotalMatches = result.totalMatches;
+    this.totalPages = Math.max(1, Math.ceil(result.totalMatches / PAGE_SIZE));
+
+    this.renderSearchResults(result);
+  }
+
+  private showLoading(): void {
     const tbody = this.container.querySelector('.chunk-tbody');
     if (tbody) {
       tbody.innerHTML = `<tr><td colspan="99" class="chunk-loading">Loading...</td></tr>`;
     }
+  }
 
-    const text = await this.fetchLines(lineOffset, PAGE_SIZE);
-    this.renderTable(text);
+  private async executeSearch(query: string): Promise<void> {
+    this.searchQuery = query;
+    if (!query) {
+      // Clear search — restore normal view
+      this.searchTotalMatches = 0;
+      const dataLines = this.meta.kind === 'csv' ? Math.max(0, this.meta.totalLines - 1) : this.meta.totalLines;
+      this.totalPages = Math.max(1, Math.ceil(dataLines / PAGE_SIZE));
+      await this.loadPage(1);
+      return;
+    }
+
+    // Fetch first page of search results
+    this.showLoading();
+    const result = await this.fetchSearchResults(query, 0, PAGE_SIZE);
+    this.searchTotalMatches = result.totalMatches;
+    this.totalPages = Math.max(1, Math.ceil(result.totalMatches / PAGE_SIZE));
+    this.currentPage = 1;
+
+    this.renderSearchResults(result);
+  }
+
+  private renderSearchResults(result: SearchResult): void {
+    const { kind } = this.meta;
+    const query = this.searchQuery;
+    let theadHtml: string;
+    let tbodyHtml: string;
+
+    if (kind === 'csv') {
+      const fields = this.csvFields ?? [];
+      if (fields.length && result.matches.length) {
+        // Re-parse each matched line with the known header
+        const headerLine = result.headerLine || fields.join(',');
+        const chunkText = headerLine + '\n' + result.matches.map((m) => m.text).join('\n');
+        const parsed = parseCsvChunk(chunkText, true);
+        theadHtml = this.buildThead(fields);
+        tbodyHtml = renderCsvRows(fields, parsed.rows, query);
+      } else {
+        theadHtml = this.buildThead(fields);
+        tbodyHtml = '';
+      }
+    } else if (kind === 'jsonl') {
+      const chunkText = result.matches.map((m) => m.text).join('\n');
+      const parsed = parseJsonlChunk(chunkText);
+      theadHtml = this.buildThead(parsed.fields);
+      tbodyHtml = renderJsonlRows(parsed.fields, parsed.rows, query);
+    } else {
+      // log
+      const isCombined = this.logFormat === 'combined';
+      const headerCols = ['IP', 'User', 'Timestamp', 'Method', 'Path', 'Status', 'Size',
+        ...(isCombined ? ['Referer', 'User-Agent'] : [])];
+      theadHtml = this.buildThead(headerCols);
+
+      const entries: LogEntry[] = [];
+      for (const m of result.matches) {
+        const entry = parseLogLine(m.text, this.logFormat);
+        if (entry) entries.push(entry);
+      }
+      tbodyHtml = renderLogRows(entries, isCombined, query);
+    }
+
+    const startMatch = (this.currentPage - 1) * PAGE_SIZE + 1;
+    const endMatch = Math.min(this.currentPage * PAGE_SIZE, this.searchTotalMatches);
+    const rangeInfo = this.searchTotalMatches > 0
+      ? `Matches ${startMatch.toLocaleString()}&ndash;${endMatch.toLocaleString()}`
+      : 'No matches';
+
+    const sizeLabel = this.meta.fileSize >= 1024 * 1024
+      ? `${(this.meta.fileSize / (1024 * 1024)).toFixed(1)} MB`
+      : `${(this.meta.fileSize / 1024).toFixed(0)} KB`;
+
+    const pagination = this.totalPages > 1 ? renderPagination(this.currentPage, this.totalPages) : '';
+    const searchBar = renderSearchBar(this.searchQuery, this.searchTotalMatches);
+
+    this.container.innerHTML = `<div class="csv-view${kind === 'log' ? ' log-view' : ''}">
+      <div class="csv-info">${this.searchTotalMatches.toLocaleString()} matches in ${this.meta.totalLines.toLocaleString()} lines &bull; ${sizeLabel} &bull; ${rangeInfo}</div>
+      ${searchBar}
+      ${pagination}
+      <div class="csv-table-wrap">
+        <table class="csv-table">
+          <thead><tr>${theadHtml}</tr></thead>
+          <tbody class="chunk-tbody">${tbodyHtml}</tbody>
+        </table>
+      </div>
+      ${pagination}
+    </div>`;
+
+    this.bindEvents();
+    // Re-focus search input and place cursor at end
+    const input = this.container.querySelector<HTMLInputElement>('.chunk-search-input');
+    if (input) {
+      input.focus();
+      input.selectionStart = input.selectionEnd = input.value.length;
+    }
   }
 
   private renderTable(chunkText: string): void {
@@ -261,13 +422,11 @@ export class ChunkedTable {
     if (kind === 'csv') {
       const fields = this.csvFields ?? [];
       if (!fields.length) {
-        // Fall back: parse chunk with header
         const parsed = parseCsvChunk(chunkText, true);
         this.csvFields = parsed.fields;
         theadHtml = this.buildThead(parsed.fields);
         tbodyHtml = renderCsvRows(parsed.fields, parsed.rows);
       } else {
-        // Chunk has no header; use known fields
         const parsed = parseCsvChunk(fields.join(',') + '\n' + chunkText, true);
         theadHtml = this.buildThead(fields);
         tbodyHtml = renderCsvRows(fields, parsed.rows);
@@ -280,7 +439,6 @@ export class ChunkedTable {
       tbodyHtml = renderJsonlRows(parsed.fields, parsed.rows);
       infoHtml = `${this.meta.totalLines.toLocaleString()} lines &mdash; JSONL (chunked)`;
     } else {
-      // log
       const isCombined = this.logFormat === 'combined';
       const headerCols = ['IP', 'User', 'Timestamp', 'Method', 'Path', 'Status', 'Size',
         ...(isCombined ? ['Referer', 'User-Agent'] : [])];
@@ -300,14 +458,16 @@ export class ChunkedTable {
     const endRow = Math.min(this.currentPage * PAGE_SIZE, kind === 'csv' ? this.meta.totalLines - 1 : this.meta.totalLines);
     const rangeInfo = `Rows ${startRow.toLocaleString()}&ndash;${endRow.toLocaleString()}`;
 
-    const sizeKB = (this.meta.fileSize / 1024).toFixed(0);
-    const sizeMB = (this.meta.fileSize / (1024 * 1024)).toFixed(1);
-    const sizeLabel = this.meta.fileSize >= 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
+    const sizeLabel = this.meta.fileSize >= 1024 * 1024
+      ? `${(this.meta.fileSize / (1024 * 1024)).toFixed(1)} MB`
+      : `${(this.meta.fileSize / 1024).toFixed(0)} KB`;
 
     const pagination = renderPagination(this.currentPage, this.totalPages);
+    const searchBar = renderSearchBar(this.searchQuery, null);
 
     this.container.innerHTML = `<div class="csv-view${kind === 'log' ? ' log-view' : ''}">
       <div class="csv-info">${infoHtml} &bull; ${sizeLabel} &bull; ${rangeInfo}</div>
+      ${searchBar}
       ${pagination}
       <div class="csv-table-wrap">
         <table class="csv-table">
@@ -326,6 +486,7 @@ export class ChunkedTable {
   }
 
   private bindEvents(): void {
+    // Pagination buttons
     this.container.querySelectorAll<HTMLButtonElement>('.chunk-page-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const action = btn.dataset.page;
@@ -350,5 +511,38 @@ export class ChunkedTable {
       });
       input.addEventListener('change', onSubmit);
     });
+
+    // Search input with debounce
+    const searchInput = this.container.querySelector<HTMLInputElement>('.chunk-search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        if (this.searchDebounceTimer) clearTimeout(this.searchDebounceTimer);
+        this.searchDebounceTimer = setTimeout(() => {
+          const val = searchInput.value.trim();
+          if (val.length >= 2 || val.length === 0) {
+            this.executeSearch(val);
+          }
+        }, SEARCH_DEBOUNCE_MS);
+      });
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          searchInput.value = '';
+          this.executeSearch('');
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (this.searchDebounceTimer) clearTimeout(this.searchDebounceTimer);
+          this.executeSearch(searchInput.value.trim());
+        }
+      });
+    }
+
+    // Clear button
+    const clearBtn = this.container.querySelector<HTMLButtonElement>('.chunk-search-clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        this.executeSearch('');
+      });
+    }
   }
 }
