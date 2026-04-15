@@ -1,5 +1,5 @@
 {
-  "name": "docview",
+  "name": "@simota/docview",
   "version": "1.0.0",
   "type": "module",
   "description": "Beautiful document viewer for Markdown, YAML, JSON, CSV, config files, and images with Mermaid diagram support",
