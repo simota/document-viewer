@@ -94,9 +94,14 @@ function esc(s: string): string {
 }
 
 export function renderLogTable(content: string, _path: string): string {
-  const lines = content.split('\n').filter((l) => l.trim() !== '');
+  // Preserve the original file-line index alongside the content so URL #line=
+  // references the real line, even when blank rows or unparsable rows sit in
+  // between.
+  const rawLines = content.split('\n');
+  const indexed: Array<{ line: string; origLine: number }> = [];
+  rawLines.forEach((l, i) => { if (l.trim() !== '') indexed.push({ line: l, origLine: i + 1 }); });
 
-  if (!lines.length) {
+  if (!indexed.length) {
     return `<p class="error-banner">No log entries found.</p>`;
   }
 
@@ -107,19 +112,21 @@ export function renderLogTable(content: string, _path: string): string {
     return '';
   }
 
-  const allLines = lines;
-  const tableLines = allLines.slice(0, MAX_TABLE_ROWS);
-  const truncated = allLines.length > MAX_TABLE_ROWS;
+  const allCount = indexed.length;
+  const tableItems = indexed.slice(0, MAX_TABLE_ROWS);
+  const truncated = allCount > MAX_TABLE_ROWS;
 
   const entries: LogEntry[] = [];
+  const entryLineNums: number[] = [];
   const unparsed: number[] = [];
 
-  tableLines.forEach((line, i) => {
+  tableItems.forEach(({ line, origLine }) => {
     const entry = parseLine(line, format);
     if (entry) {
       entries.push(entry);
+      entryLineNums.push(origLine);
     } else {
-      unparsed.push(i + 1);
+      unparsed.push(origLine);
     }
   });
 
@@ -134,13 +141,16 @@ export function renderLogTable(content: string, _path: string): string {
     ...(isCombined ? ['Referer', 'User-Agent'] : []),
   ];
 
-  const ths = headerCols
-    .map((h) => `<th data-col="${esc(h)}" role="columnheader" aria-sort="none">${esc(h)}<span class="sort-indicator" aria-hidden="true"></span></th>`)
-    .join('');
+  const ths = [
+    `<th class="log-line-num-head" aria-label="Line number">#</th>`,
+    ...headerCols.map((h) => `<th data-col="${esc(h)}" role="columnheader" aria-sort="none">${esc(h)}<span class="sort-indicator" aria-hidden="true"></span></th>`),
+  ].join('');
 
   const trs = entries
     .map((e, i) => {
       const sc = statusClass(e.status);
+      const lineNum = entryLineNums[i];
+      const lineTd = `<td class="log-line-num" data-line="${lineNum}" role="button" tabindex="0" title="Click to copy link to line ${lineNum}">${lineNum}</td>`;
       const baseTds = [
         `<td>${esc(e.ip)}</td>`,
         `<td>${esc(e.user)}</td>`,
@@ -156,12 +166,12 @@ export function renderLogTable(content: string, _path: string): string {
             `<td class="log-ua" title="${esc(e.userAgent)}">${esc(e.userAgent)}</td>`,
           ]
         : [];
-      return `<tr data-row-index="${i}">${[...baseTds, ...extraTds].join('')}</tr>`;
+      return `<tr data-row-index="${i}" data-line="${lineNum}">${[lineTd, ...baseTds, ...extraTds].join('')}</tr>`;
     })
     .join('');
 
   const totalLabel = truncated
-    ? `Showing first ${entries.length} of ${allLines.length} lines`
+    ? `Showing first ${entries.length} of ${allCount} lines`
     : `${entries.length} entries`;
 
   const warnBanner =
@@ -170,7 +180,7 @@ export function renderLogTable(content: string, _path: string): string {
       : '';
 
   const truncBanner = truncated
-    ? `<div class="csv-info csv-info--warn">Table limited to first ${MAX_TABLE_ROWS} rows. Use Source view to see all ${allLines.length} lines.</div>`
+    ? `<div class="csv-info csv-info--warn">Table limited to first ${MAX_TABLE_ROWS} rows. Use Source view to see all ${allCount} lines.</div>`
     : '';
 
   return `<div class="csv-view log-view">
