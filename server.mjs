@@ -929,12 +929,45 @@ await killExistingDocview(port);
 
 server.on('error', (err) => reportAndExit(err));
 
+const BANNER = [
+  '       _                     _',
+  '    __| |  ___    ___ __   _(_)  ___ __      __',
+  '   / _` | / _ \\  / __|\\ \\ / / | / _ \\\\ \\ /\\ / /',
+  '  | (_| || (_) || (__  \\ V /| ||  __/ \\ V  V /',
+  '   \\__,_| \\___/  \\___|  \\_/ |_| \\___|  \\_/\\_/',
+].join('\n');
+
+const TIPS = [
+  'Press "?" in the browser to see all keyboard shortcuts.',
+  'Cmd+P opens the file search — type to fuzzy-match any file.',
+  'Cmd+Shift+F runs full-text search across every served file.',
+  'Cmd+E shows recent files — jump back without re-navigating.',
+  'Cmd+B toggles the sidebar. Cmd+\\ opens a split view.',
+  '"/" inside a document starts vim-style find (n / N to navigate).',
+  'Cmd+Shift+S turns Markdown "---" sections into a slide deck.',
+  'Cmd+Shift+E exports the current view to a standalone HTML file.',
+  'Share a specific line: append "&line=N" (or "&line=10-20") to the URL hash.',
+  'Click any line number in code / log views to copy a link to that exact line.',
+  'Drop a ".docview.css" in the served directory to inject custom styles.',
+  'Large CSV / JSONL / log files stream in chunks — search still hits every row.',
+  'Mermaid, KaTeX math, footnotes, and GitHub Alerts all render inline in Markdown.',
+  'JSON / YAML files show as an interactive tree — toggle Source to see the raw text.',
+  'Alt+Z toggles word wrap in code views. Cmd+= / Cmd+- zooms text.',
+];
+
+function pickTip() {
+  return TIPS[Math.floor(Math.random() * TIPS.length)];
+}
+
 server.listen(port, () => {
-  console.log(`\n  DocView`);
-  console.log(`  ───────────────────────────────`);
+  console.log('');
+  console.log(BANNER);
+  console.log(`  ─────────────────────────────────────────────`);
   console.log(`  Watching:  ${targetDir}`);
   if (initialFile) console.log(`  File:      ${initialFile}`);
   console.log(`  Server:    http://localhost:${port}/`);
-  console.log(`  ───────────────────────────────\n`);
+  console.log(`  ─────────────────────────────────────────────`);
+  console.log(`  Tip:       ${pickTip()}`);
+  console.log('');
   if (process.send) process.send({ type: 'listening', port });
 });
