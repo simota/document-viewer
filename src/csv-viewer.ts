@@ -14,14 +14,20 @@ export function renderCsvTable(content: string, path: string): string {
   const fields = result.meta.fields;
   const rows = result.data as Record<string, unknown>[];
 
-  const ths = fields.map((f) => `<th data-col="${esc(f)}" role="columnheader" aria-sort="none">${esc(f)}<span class="sort-indicator" aria-hidden="true"></span></th>`).join('');
+  const ths = fields.map((f, i) => `<th data-col="${esc(f)}" data-col-index="${i}" role="columnheader" aria-sort="none"><label class="csv-col-check"><input type="checkbox" data-col-select="${i}" checked></label>${esc(f)}<span class="sort-indicator" aria-hidden="true"></span></th>`).join('');
   const trs = rows.map((row, i) => {
     const tds = fields.map((f) => `<td>${esc(String(row[f] ?? ''))}</td>`).join('');
     return `<tr data-row-index="${i}">${tds}</tr>`;
   }).join('');
 
   return `<div class="csv-view">
-    <div class="csv-info">${rows.length} rows &times; ${fields.length} columns</div>
+    <div class="csv-info">
+      <span>${rows.length} rows &times; ${fields.length} columns</span>
+      <span class="csv-col-actions">
+        <button class="csv-col-toggle-all" title="全列の選択を切替">全選択</button>
+        <button class="csv-copy-cols" title="選択した列をコピー">選択列をコピー</button>
+      </span>
+    </div>
     <div class="csv-table-wrap">
       <table class="csv-table csv-sortable">
         <thead><tr>${ths}</tr></thead>
@@ -85,7 +91,11 @@ function compareRows(
 
 export function initCsvSort(): void {
   document.addEventListener('click', (e) => {
-    const th = (e.target as HTMLElement).closest('.csv-sortable th');
+    const target = e.target as HTMLElement;
+    // チェックボックスクリック時はソートしない
+    if (target.closest('.csv-col-check')) return;
+
+    const th = target.closest('.csv-sortable th');
     if (!th) return;
 
     const table = th.closest('table')!;
@@ -106,5 +116,91 @@ export function initCsvSort(): void {
     });
 
     rows.forEach((row) => tbody.appendChild(row));
+  });
+}
+
+function updateColumnHighlight(table: HTMLTableElement): void {
+  const checkboxes = table.querySelectorAll<HTMLInputElement>('input[data-col-select]');
+  const selected = new Set<number>();
+  checkboxes.forEach((cb) => {
+    if (cb.checked) selected.add(Number(cb.dataset.colSelect));
+  });
+
+  // ヘッダーのハイライト
+  const ths = table.querySelectorAll('thead th');
+  ths.forEach((th, i) => th.classList.toggle('csv-col-selected', selected.has(i)));
+
+  // セルのハイライト
+  const rows = table.querySelectorAll('tbody tr');
+  rows.forEach((row) => {
+    const tds = row.querySelectorAll('td');
+    tds.forEach((td, i) => td.classList.toggle('csv-col-selected', selected.has(i)));
+  });
+}
+
+function getSelectedColumnData(table: HTMLTableElement): string {
+  const checkboxes = table.querySelectorAll<HTMLInputElement>('input[data-col-select]');
+  const selected: number[] = [];
+  checkboxes.forEach((cb) => {
+    if (cb.checked) selected.push(Number(cb.dataset.colSelect));
+  });
+  if (!selected.length) return '';
+
+  const ths = table.querySelectorAll('thead th');
+  const headerLine = selected.map((i) => ths[i]?.getAttribute('data-col') ?? '').join('\t');
+
+  const rows = table.querySelectorAll('tbody tr');
+  const lines = [headerLine];
+  rows.forEach((row) => {
+    const tds = row.querySelectorAll('td');
+    lines.push(selected.map((i) => (tds[i]?.textContent ?? '').trim()).join('\t'));
+  });
+  return lines.join('\n');
+}
+
+export function initCsvColumnCopy(): void {
+  document.addEventListener('change', (e) => {
+    const cb = e.target as HTMLInputElement;
+    if (!cb.matches('input[data-col-select]')) return;
+    const table = cb.closest('table');
+    if (table) updateColumnHighlight(table);
+  });
+
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+
+    // 全選択/全解除トグル
+    if (target.closest('.csv-col-toggle-all')) {
+      const wrap = target.closest('.csv-view');
+      if (!wrap) return;
+      const table = wrap.querySelector('table');
+      if (!table) return;
+      const checkboxes = table.querySelectorAll<HTMLInputElement>('input[data-col-select]');
+      const allChecked = Array.from(checkboxes).every((cb) => cb.checked);
+      checkboxes.forEach((cb) => (cb.checked = !allChecked));
+      updateColumnHighlight(table);
+      return;
+    }
+
+    // 選択列をコピー
+    if (target.closest('.csv-copy-cols')) {
+      const wrap = target.closest('.csv-view');
+      if (!wrap) return;
+      const table = wrap.querySelector('table');
+      if (!table) return;
+      const data = getSelectedColumnData(table);
+      if (!data) return;
+      const btn = target.closest('.csv-copy-cols') as HTMLButtonElement;
+      navigator.clipboard.writeText(data).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'コピーしました';
+        btn.classList.add('csv-copy-cols--done');
+        setTimeout(() => {
+          btn.textContent = orig;
+          btn.classList.remove('csv-copy-cols--done');
+        }, 1500);
+      });
+      return;
+    }
   });
 }

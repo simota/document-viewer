@@ -6,7 +6,7 @@ import { SearchModal } from './search';
 import { renderJsonTree } from './json-tree';
 import { renderYamlTree } from './yaml-tree';
 import { TabBar, addRecent, getRecent } from './tabs';
-import { renderCsvTable, initCsvSort } from './csv-viewer';
+import { renderCsvTable, initCsvSort, initCsvColumnCopy } from './csv-viewer';
 import { renderJsonlTable } from './jsonl-viewer';
 import { renderLogTable } from './log-viewer';
 import { ChunkedTable } from './chunked-table';
@@ -972,6 +972,7 @@ async function init() {
     setupSidebarKeyNav();
     initSidebarResize(sidebar);
     initCsvSort();
+    initCsvColumnCopy();
 
     // URL hash takes priority, then CLI initial file, then first file in tree
     const hashFile = getHashFile();

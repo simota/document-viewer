@@ -2003,6 +2003,62 @@ mark.find-current {
   background: var(--accent-bg);
 }
 
+.csv-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.csv-col-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.csv-col-toggle-all,
+.csv-copy-cols {
+  font-size: 11px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--bg-secondary, #f6f8fa);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.csv-col-toggle-all:hover,
+.csv-copy-cols:hover {
+  background: var(--accent-bg);
+  color: var(--text-primary);
+}
+
+.csv-copy-cols--done {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.csv-col-check {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.csv-col-check input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.csv-col-selected {
+  background: var(--accent-bg) !important;
+}
+
 .csv-info--warn {
   color: var(--color-warning);
 }
