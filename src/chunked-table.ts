@@ -210,11 +210,20 @@ function renderSearchBar(query: string, totalMatches: number | null): string {
 
 // --- Main chunked table class ---
 
+interface ChunkedOptions {
+  /** Target line from URL hash. Used to open the page that contains it. */
+  initialLine?: number | null;
+  /** Retained for signature parity with the main viewer; currently unused
+   *  because chunked rendering only navigates by page, not by range. */
+  initialLineEnd?: number | null;
+}
+
 export class ChunkedTable {
   private container: HTMLElement;
   private meta: ChunkMeta;
   private currentPage = 1;
   private totalPages: number;
+  private initialLine: number | null;
 
   // Cached header for CSV (first row parsed from first chunk)
   private csvFields: string[] | null = null;
@@ -226,9 +235,10 @@ export class ChunkedTable {
   private searchTotalMatches = 0;
   private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(container: HTMLElement, meta: ChunkMeta) {
+  constructor(container: HTMLElement, meta: ChunkMeta, options: ChunkedOptions = {}) {
     this.container = container;
     this.meta = meta;
+    this.initialLine = options.initialLine ?? null;
     const dataLines = meta.kind === 'csv' ? Math.max(0, meta.totalLines - 1) : meta.totalLines;
     this.totalPages = Math.max(1, Math.ceil(dataLines / PAGE_SIZE));
   }
@@ -249,7 +259,17 @@ export class ChunkedTable {
       }
     }
 
-    await this.loadPage(1);
+    await this.loadPage(this.computeInitialPage());
+  }
+
+  /** Page that contains `initialLine`. Falls back to 1 when unset. */
+  private computeInitialPage(): number {
+    if (this.initialLine == null) return 1;
+    const n = this.initialLine;
+    // CSV line 1 is the header; data rows span lines 2..N, so the data index
+    // is (line - 1) and paging counts from there.
+    const dataIdx = this.meta.kind === 'csv' ? Math.max(1, n - 1) : n;
+    return Math.max(1, Math.min(this.totalPages, Math.ceil(dataIdx / PAGE_SIZE)));
   }
 
   isLogUnknown(): boolean {

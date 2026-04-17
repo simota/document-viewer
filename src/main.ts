@@ -174,19 +174,153 @@ viewer.addEventListener('scroll', () => {
 });
 
 // --- URL hash routing (#9) ---
-function updateHash(path: string | null) {
+// Format: #file=<path>[&line=<N>[-<M>]]
+interface ParsedHash {
+  path: string | null;
+  line: number | null;
+  lineEnd: number | null;
+}
+
+function parseHash(hash: string = location.hash): ParsedHash {
+  const raw = hash.startsWith('#') ? hash.slice(1) : hash;
+  if (!raw) return { path: null, line: null, lineEnd: null };
+  // URLSearchParams.get() already percent-decodes; do not decode again here or
+  // filenames containing `%` (e.g. `100%.md`) break or throw.
+  const params = new URLSearchParams(raw);
+  const path = params.get('file');
+  const lineStr = params.get('line');
+  let line: number | null = null;
+  let lineEnd: number | null = null;
+  if (lineStr) {
+    const m = lineStr.match(/^(\d+)(?:-(\d+))?$/);
+    if (m) {
+      line = parseInt(m[1], 10);
+      if (m[2]) {
+        lineEnd = parseInt(m[2], 10);
+        if (lineEnd < line) [line, lineEnd] = [lineEnd, line];
+      }
+    }
+  }
+  return { path, line, lineEnd };
+}
+
+function buildHash(path: string | null, line?: number | null, lineEnd?: number | null): string {
+  if (!path) return '';
+  let h = `#file=${encodeURIComponent(path)}`;
+  if (line != null) {
+    h += `&line=${line}`;
+    if (lineEnd != null && lineEnd !== line) h += `-${lineEnd}`;
+  }
+  return h;
+}
+
+function updateHash(path: string | null, line?: number | null, lineEnd?: number | null) {
   if (path) {
-    history.replaceState(null, '', `#file=${encodeURIComponent(path)}`);
+    history.replaceState(null, '', buildHash(path, line, lineEnd));
   } else {
     history.replaceState(null, '', location.pathname);
   }
 }
 
-function getHashFile(): string | null {
-  const hash = location.hash;
-  const match = hash.match(/^#file=(.+)$/);
-  return match ? decodeURIComponent(match[1]) : null;
+// --- Line jump (URL hash #file=...&line=N[-M]) ---
+// Tracks the line requested by URL hash. Consumed (and cleared) after rendering.
+let pendingLineJump: { line: number; lineEnd: number | null } | null = null;
+// Tracks the currently highlighted line range, used for Shift+Click range expansion.
+let currentHighlightedLine: number | null = null;
+
+function clearLineHighlights(target: HTMLElement = viewer) {
+  target.querySelectorAll('.line-highlighted').forEach((el) => el.classList.remove('line-highlighted'));
 }
+
+function highlightLines(start: number, end: number | null, target: HTMLElement = viewer) {
+  clearLineHighlights(target);
+  const last = end ?? start;
+  for (let n = start; n <= last; n++) {
+    target.querySelectorAll(`[data-line="${n}"]`).forEach((el) => {
+      if (el.classList.contains('line-row') || el.tagName === 'TR') {
+        el.classList.add('line-highlighted');
+      }
+    });
+  }
+}
+
+function scrollToLine(line: number, lineEnd: number | null, target: HTMLElement = viewer) {
+  const el = target.querySelector(`.line-row[data-line="${line}"], tr[data-line="${line}"]`) as HTMLElement | null;
+  if (!el) return false;
+  highlightLines(line, lineEnd, target);
+  currentHighlightedLine = line;
+  // Center in view; fall back to scrollIntoView for robustness.
+  requestAnimationFrame(() => {
+    el.scrollIntoView({ block: 'center', behavior: 'auto' });
+  });
+  return true;
+}
+
+function showCopyToast(message: string) {
+  const existing = document.getElementById('copy-toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'copy-toast';
+  toast.className = 'copy-toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('copy-toast-visible'));
+  setTimeout(() => {
+    toast.classList.remove('copy-toast-visible');
+    setTimeout(() => toast.remove(), 250);
+  }, 1600);
+}
+
+async function copyLinkToLine(line: number, lineEnd: number | null) {
+  if (!currentFilePath) return;
+  updateHash(currentFilePath, line, lineEnd);
+  const url = `${location.origin}${location.pathname}${buildHash(currentFilePath, line, lineEnd)}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    const label = lineEnd != null && lineEnd !== line
+      ? `Copied link to lines ${line}–${lineEnd}`
+      : `Copied link to line ${line}`;
+    showCopyToast(label);
+  } catch {
+    showCopyToast(`Link: ${url}`);
+  }
+}
+
+function handleLineNumClick(e: Event) {
+  const t = e.target as HTMLElement;
+  const el = t.closest('[data-line]') as HTMLElement | null;
+  if (!el) return;
+  // Only line-num spans (source view) and log-line-num cells (log table) are clickable.
+  if (!el.classList.contains('line-num') && !el.classList.contains('log-line-num')) return;
+  const line = parseInt(el.dataset.line || '', 10);
+  if (!Number.isFinite(line)) return;
+  e.preventDefault();
+
+  const mouseEvt = e as MouseEvent;
+  const shift = mouseEvt.shiftKey;
+  if (shift && currentHighlightedLine != null && currentHighlightedLine !== line) {
+    const start = Math.min(currentHighlightedLine, line);
+    const end = Math.max(currentHighlightedLine, line);
+    highlightLines(start, end);
+    copyLinkToLine(start, end);
+  } else {
+    highlightLines(line, null);
+    currentHighlightedLine = line;
+    copyLinkToLine(line, null);
+  }
+}
+
+function handleLineNumKey(e: KeyboardEvent) {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const t = e.target as HTMLElement;
+  if (!t.classList.contains('line-num') && !t.classList.contains('log-line-num')) return;
+  e.preventDefault();
+  handleLineNumClick(e);
+}
+
+// Delegated line-number click handler on the viewer.
+viewer.addEventListener('click', handleLineNumClick);
+viewer.addEventListener('keydown', handleLineNumKey);
 
 // --- Relative link navigation (#10) ---
 function interceptRelativeLinks(target: HTMLElement = viewer) {
@@ -330,7 +464,15 @@ function renderContent(content: string, path: string, target: HTMLElement = view
 
   addCopyButtons(target);
   initImageZoom(target);
-  if (target === viewer) restoreScrollPosition(path);
+  if (target === viewer) {
+    if (pendingLineJump) {
+      const { line, lineEnd } = pendingLineJump;
+      pendingLineJump = null;
+      scrollToLine(line, lineEnd, target);
+    } else {
+      restoreScrollPosition(path);
+    }
+  }
 }
 
 function renderHighlighted(content: string, path: string, target: HTMLElement = viewer) {
@@ -343,9 +485,10 @@ function renderHighlighted(content: string, path: string, target: HTMLElement = 
     highlighted = hljs.highlightAuto(content).value;
   }
   const lines = highlighted.split('\n');
-  const numbered = lines.map((line, i) =>
-    `<span class="line-row"><span class="line-num">${i + 1}</span><span class="line-content">${line}</span></span>`
-  ).join('\n');
+  const numbered = lines.map((line, i) => {
+    const n = i + 1;
+    return `<span class="line-row" data-line="${n}"><span class="line-num" data-line="${n}" role="button" tabindex="0" title="Click to copy link to line ${n} (Shift+Click for range)">${n}</span><span class="line-content">${line}</span></span>`;
+  }).join('\n');
   target.innerHTML = `<div class="data-view"><span class="data-lang">${ext}</span><pre class="hljs has-line-nums"><code>${numbered}</code></pre></div>`;
 }
 
@@ -473,10 +616,22 @@ function fileTypeToChunkKind(type: FileType): 'csv' | 'jsonl' | 'log' | null {
 async function loadServerFile(path: string) {
   saveScrollPosition();
   const type = detectFileType(path);
+  const fileChanged = currentFilePath !== path;
   currentFilePath = path;
   document.title = `${path} — DocView`;
   updateBreadcrumb(path);
-  updateHash(path);
+  // Preserve existing line info in hash when the caller didn't provide one.
+  const existingHash = parseHash();
+  const hashLine = existingHash.path === path ? existingHash.line : null;
+  const hashLineEnd = existingHash.path === path ? existingHash.lineEnd : null;
+  updateHash(path, hashLine, hashLineEnd);
+  if (fileChanged) currentHighlightedLine = null;
+  // Re-apply the URL-declared line on every (re)load so SSE-triggered reloads
+  // and manual reloads keep the shared-link highlight intact. Only set when
+  // not already queued by hashchange/init, to avoid stomping a fresher target.
+  if (hashLine != null && !pendingLineJump) {
+    pendingLineJump = { line: hashLine, lineEnd: hashLineEnd };
+  }
   addRecent(path);
   tabBar.open(path);
 
@@ -505,13 +660,19 @@ async function loadServerFile(path: string) {
         updateBreadcrumb(path, meta.mtime);
 
         if (meta.size > CHUNK_THRESHOLD) {
-          // Chunked mode — never load full file
+          // Chunked mode — never load full file. Pass the pending line jump
+          // so ChunkedTable opens on the page containing the target line.
+          // Per-row highlight inside a chunked page is a follow-up; here we
+          // at least avoid silently ignoring `&line=N` on large files.
           const chunked = new ChunkedTable(viewer, {
             path,
             kind: chunkKind,
             totalLines: meta.lines ?? 0,
             fileSize: meta.size,
             mtime: meta.mtime,
+          }, {
+            initialLine: pendingLineJump?.line ?? null,
+            initialLineEnd: pendingLineJump?.lineEnd ?? null,
           });
           await chunked.init();
 
@@ -519,6 +680,9 @@ async function loadServerFile(path: string) {
           if (chunked.isLogUnknown()) {
             await loadFullFile(path);
           } else {
+            // ChunkedTable consumed the line target (page navigation). Clear
+            // it so a later non-chunked render doesn't try to re-apply.
+            pendingLineJump = null;
             toc.clear();
             fileTree?.setActive(path);
             if (progressBar) progressBar.style.width = '0%';
@@ -975,10 +1139,13 @@ async function init() {
     initCsvColumnCopy();
 
     // URL hash takes priority, then CLI initial file, then first file in tree
-    const hashFile = getHashFile();
-    const startFile = hashFile || initialFile;
+    const parsed = parseHash();
+    const startFile = parsed.path || initialFile;
 
     if (startFile) {
+      if (parsed.path && parsed.line != null) {
+        pendingLineJump = { line: parsed.line, lineEnd: parsed.lineEnd };
+      }
       loadServerFile(startFile);
     } else {
       const firstFile = sidebar.querySelector('.filetree-item[data-type="file"]') as HTMLElement;
@@ -1047,6 +1214,17 @@ document.addEventListener('keydown', handleKeyboard);
 
 // Hash change navigation (#9)
 window.addEventListener('hashchange', () => {
-  const file = getHashFile();
-  if (file && file !== currentFilePath) loadServerFile(file);
+  const parsed = parseHash();
+  if (!parsed.path) return;
+  if (parsed.path !== currentFilePath) {
+    if (parsed.line != null) {
+      pendingLineJump = { line: parsed.line, lineEnd: parsed.lineEnd };
+    }
+    loadServerFile(parsed.path);
+  } else if (parsed.line != null) {
+    scrollToLine(parsed.line, parsed.lineEnd);
+  } else {
+    clearLineHighlights();
+    currentHighlightedLine = null;
+  }
 });
