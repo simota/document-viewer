@@ -792,6 +792,15 @@ body.dragging::after {
   filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.3));
 }
 
+/* ER diagram: Mermaid auto-derives row fills via HSL (odd ~93% lightness) which
+   collides with light textColor in dark mode. Force dark-appropriate fills. */
+[data-theme='dark'] .mermaid-rendered g.row-rect-odd > path[stroke='none'] {
+  fill: #252847 !important;
+}
+[data-theme='dark'] .mermaid-rendered g.row-rect-even > path[stroke='none'] {
+  fill: #1e2040 !important;
+}
+
 /* Mermaid SVG node styling overrides */
 .mermaid-rendered .node rect,
 .mermaid-rendered .node circle,
